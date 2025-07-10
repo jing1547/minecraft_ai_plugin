@@ -279,11 +279,80 @@
             "testStrategy": "Test command execution in both environments to ensure appropriate behavior and messaging in each scenario."
           }
         ]
+      },
+      {
+        "id": 17,
+        "title": "Fix Minecraft 1.21.7 Compatibility Issues in FakePlayer Implementation",
+        "description": "Resolve critical errors in the FakePlayer class caused by Minecraft 1.21.7 internal changes to packet systems and entity data structures, preventing player disconnections.",
+        "details": "Implement comprehensive compatibility fixes for Minecraft 1.21.7:\n\n1. Update ProtocolLib dependency:\n   - Verify and update to the latest ProtocolLib version compatible with 1.21.7\n   - Modify dependency declaration in plugin.yml and pom.xml/build.gradle\n   - Update DependencyManager to check for the correct ProtocolLib version\n\n2. Refactor FakePlayer class to accommodate new packet structure:\n   - Fix `FieldAccessException: Field index 0 is out of bounds for length 0` by updating field access methods\n   - Replace deprecated NAMED_ENTITY_SPAWN packet references with SPAWN_ENTITY\n   - Create adapter pattern to handle packet type differences between versions\n   - Implement version detection to apply appropriate packet handling\n\n3. Update entity data handling:\n   - Refactor code using SynchedEntityData to match new class structure\n   - Replace DataItem casting with appropriate DataValue implementation\n   - Create abstraction layer for entity metadata to handle version differences\n   - Implement proper type checking before casting operations\n\n4. Implement robust error handling:\n   - Add try-catch blocks around critical packet operations\n   - Create detailed logging for packet-related errors\n   - Implement graceful degradation when packet operations fail\n   - Add telemetry to track compatibility issues in production\n\n5. Create version-specific implementations:\n   - Develop VersionHandler interface with specific implementations for 1.21.7\n   - Implement factory pattern to create appropriate handlers based on server version\n   - Isolate version-specific code to improve maintainability\n   - Document API changes between versions for future reference\n\n6. Test compatibility across multiple environments:\n   - Set up test servers with different Minecraft versions\n   - Create automated tests for packet handling\n   - Implement stress tests to verify stability under load\n   - Document all compatibility issues and solutions",
+        "testStrategy": "1. Set up a test environment with Minecraft 1.21.7 server:\n   - Install latest compatible ProtocolLib\n   - Configure server with identical settings to production\n   - Create test scenarios that previously triggered errors\n\n2. Verify packet handling fixes:\n   - Test spawning multiple fake players simultaneously\n   - Validate entity metadata is correctly synchronized\n   - Confirm no FieldAccessException occurs during entity spawning\n   - Verify SPAWN_ENTITY packets are correctly processed\n\n3. Test entity data structure compatibility:\n   - Monitor for ClassCastException during entity data updates\n   - Verify entity appearance updates correctly\n   - Test all entity metadata modifications (equipment, poses, etc.)\n   - Confirm entity visibility to all players in different scenarios\n\n4. Perform stress testing:\n   - Spawn maximum allowed fake players simultaneously\n   - Test rapid creation and destruction of entities\n   - Verify performance under high player count\n   - Monitor for memory leaks or performance degradation\n\n5. Regression testing:\n   - Verify compatibility with previous Minecraft versions\n   - Test all plugin commands and features\n   - Confirm integration with other plugins still works\n   - Validate that no new errors are introduced\n\n6. User acceptance testing:\n   - Deploy to test server with real players\n   - Monitor for disconnections or client crashes\n   - Collect feedback on entity visual appearance\n   - Verify smooth operation during extended gameplay sessions",
+        "status": "pending",
+        "dependencies": [
+          16,
+          2,
+          7
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Update ProtocolLib Dependency",
+            "description": "Verify and update to the latest ProtocolLib version compatible with Minecraft 1.21.7, updating all necessary configuration files.",
+            "dependencies": [],
+            "details": "Research the latest ProtocolLib version that supports Minecraft 1.21.7. Update the dependency declaration in plugin.yml and build configuration files (pom.xml or build.gradle). Modify the DependencyManager class to verify the correct ProtocolLib version at runtime. Test that the plugin loads correctly with the updated dependency.",
+            "status": "done",
+            "testStrategy": "Verify plugin loads without errors on Minecraft 1.21.7 server with updated ProtocolLib. Check logs for any dependency-related warnings or errors."
+          },
+          {
+            "id": 2,
+            "title": "Refactor Packet Structure Handling",
+            "description": "Update the FakePlayer class to work with Minecraft 1.21.7's new packet structure, fixing field access exceptions and deprecated packet references.",
+            "dependencies": [
+              1
+            ],
+            "details": "Analyze the new packet structure in 1.21.7. Replace deprecated NAMED_ENTITY_SPAWN packet references with SPAWN_ENTITY. Implement an adapter pattern to handle differences between versions. Fix the 'FieldAccessException: Field index 0 is out of bounds for length 0' by updating field access methods to match the new structure.\n<info added on 2025-07-10T07:35:10.501Z>\nMinecraft 1.21.7 compatibility fixes completed:\n\n✅ **Key Modifications:**\n1. **Prioritized SPAWN_ENTITY packet**: Replaced NAMED_ENTITY_SPAWN with SPAWN_ENTITY packet for 1.21.7 compatibility\n2. **Safe entity metadata handling**: Implemented setEntityMetadata helper method for secure metadata configuration\n3. **Player info packet improvements**: Enhanced packet processing for 1.21.7 compatibility\n4. **Comprehensive error handling**: Added error logging and safe fallback handling for all packet transmissions\n\n✅ **Modified Methods:**\n- sendSpawnPacket(): Now prioritizes SPAWN_ENTITY packet\n- sendEntityMetadataPacket(): Implements secure metadata setting\n- sendPlayerInfoPacket(): Features improved compatibility handling\n- New setEntityMetadata(): Helper method for safe metadata operations\n\n✅ **Build Successful**: \n- File location: target/minecraft-ai-companion-1.0.0-SNAPSHOT.jar\n- All dependencies included\n- No compilation errors\n\nReady for testing!\n</info added on 2025-07-10T07:35:10.501Z>",
+            "status": "done",
+            "testStrategy": "Create unit tests for packet creation and sending. Manually test by spawning fake players and verifying they appear correctly for real players."
+          },
+          {
+            "id": 3,
+            "title": "Update Entity Data Handling",
+            "description": "Refactor code using SynchedEntityData to match Minecraft 1.21.7's new class structure and implement proper type handling.",
+            "dependencies": [
+              2
+            ],
+            "details": "Analyze changes to SynchedEntityData in 1.21.7. Replace DataItem casting with appropriate DataValue implementation. Create an abstraction layer for entity metadata to handle version differences. Implement proper type checking before casting operations to prevent ClassCastExceptions.",
+            "status": "in-progress",
+            "testStrategy": "Create unit tests for entity data manipulation. Test different entity metadata types to ensure proper handling across versions."
+          },
+          {
+            "id": 4,
+            "title": "Implement Version-Specific Handlers",
+            "description": "Create a version detection system with specific implementations for Minecraft 1.21.7 packet handling.",
+            "dependencies": [
+              3
+            ],
+            "details": "Develop a VersionHandler interface with specific implementations for 1.21.7. Implement a factory pattern to create appropriate handlers based on server version. Isolate version-specific code to improve maintainability. Document API changes between versions for future reference.",
+            "status": "pending",
+            "testStrategy": "Test the version detection mechanism with different server versions. Verify that the correct handler is selected for each version."
+          },
+          {
+            "id": 5,
+            "title": "Implement Robust Error Handling and Testing",
+            "description": "Add comprehensive error handling around packet operations and conduct thorough compatibility testing across multiple environments.",
+            "dependencies": [
+              4
+            ],
+            "details": "Add try-catch blocks around critical packet operations. Create detailed logging for packet-related errors. Implement graceful degradation when packet operations fail. Set up test servers with different Minecraft versions (1.20.x through 1.21.7). Create automated tests for packet handling and implement stress tests to verify stability under load.",
+            "status": "pending",
+            "testStrategy": "Run the plugin on multiple server versions simultaneously. Test edge cases like player teleportation, world changes, and high-load scenarios with many players."
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-07-10T03:59:02.544Z",
-      "updated": "2025-07-10T06:48:05.783Z",
+      "updated": "2025-07-10T07:42:53.545Z",
       "description": "Tasks for master context"
     }
   }

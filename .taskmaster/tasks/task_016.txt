@@ -1,6 +1,6 @@
 # Task ID: 16
 # Title: Fix ProtocolLib Dependency Error and Implement Safe Fallback
-# Status: pending
+# Status: done
 # Dependencies: 1, 2
 # Priority: high
 # Description: Resolve NoClassDefFoundError for ProtocolLib and implement graceful degradation when the dependency is missing to prevent plugin crashes.
@@ -91,3 +91,54 @@ public class DependencyManager {
 6. Compatibility testing:
    - Test with different versions of ProtocolLib
    - Verify behavior with outdated ProtocolLib versions
+
+# Subtasks:
+## 1. Create DependencyManager Class [done]
+### Dependencies: None
+### Description: Implement a robust DependencyManager class to handle ProtocolLib dependency verification at startup.
+### Details:
+Create a DependencyManager class that checks for ProtocolLib presence using Bukkit.getPluginManager().getPlugin("ProtocolLib"). Include version compatibility checking and proper logging. The class should provide a clean API for other components to query dependency status.
+<info added on 2025-07-10T06:47:50.523Z>
+DependencyManager 클래스 생성이 완료되었습니다.
+
+구현된 기능:
+- ProtocolLib 설치 상태 자동 감지
+- 버전 정보 확인 및 로깅
+- 한국어 상태 메시지 및 설치 안내
+- 명령어용 상태 정보 제공 메서드
+- 설치 가이드 메서드
+
+주요 메서드:
+- isProtocolLibAvailable(): 사용 가능 여부 확인
+- getDependencyStatus(): 상태 정보 문자열 반환
+- getInstallationInstructions(): 설치 안내 반환
+
+로깅 기능:
+- 성공 시: 녹색 메시지로 버전 정보 표시
+- 실패 시: 경고 메시지 + 다운로드 링크 제공
+</info added on 2025-07-10T06:47:50.523Z>
+
+## 2. Implement EntityVisualizer Interface and Implementations [done]
+### Dependencies: 16.1
+### Description: Create an abstraction layer for entity visualization with implementations for both ProtocolLib and fallback scenarios.
+### Details:
+Design an EntityVisualizer interface with methods for entity creation and manipulation. Implement two concrete classes: ProtocolLibVisualizer (using ProtocolLib features) and FallbackVisualizer (using basic Bukkit API). Use factory pattern to instantiate the appropriate implementation based on dependency availability.
+
+## 3. Modify FakePlayer Class for Graceful Degradation [done]
+### Dependencies: 16.2
+### Description: Update the FakePlayer class to work with the new EntityVisualizer abstraction and handle missing dependencies gracefully.
+### Details:
+Refactor the FakePlayer class to use the EntityVisualizer interface instead of direct ProtocolLib calls. Implement try-catch blocks for any remaining direct ProtocolLib usage. Ensure all functionality degrades gracefully when ProtocolLib is unavailable, falling back to simpler NPC implementations.
+
+## 4. Implement User Notifications System [done]
+### Dependencies: 16.1
+### Description: Create a comprehensive notification system for administrators about dependency status.
+### Details:
+Implement console warnings when ProtocolLib is missing. Add admin notifications on join for players with appropriate permissions. Include detailed installation instructions in logs. Create configuration options to control notification behavior and frequency. Ensure messages clearly explain the impact on functionality.
+
+## 5. Update Plugin Configuration and Commands [done]
+### Dependencies: 16.1, 16.2, 16.3, 16.4
+### Description: Modify plugin.yml and command implementations to support the new dependency handling approach.
+### Details:
+Change ProtocolLib from 'depend' to 'softdepend' in plugin.yml. Update command implementations to check dependency status before execution and provide appropriate feedback. Implement alternative command flows for when ProtocolLib is unavailable. Add configuration options for controlling fallback behavior.
+
