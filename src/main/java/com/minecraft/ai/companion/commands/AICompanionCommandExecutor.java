@@ -11,6 +11,7 @@ import com.minecraft.ai.companion.MinecraftAICompanionPlugin;
 import com.minecraft.ai.companion.entity.AICompanionEntity;
 import com.agjagjn.minecraft_ai.entity.FakePlayerCompanion;
 import com.minecraft.ai.companion.data.CompanionData;
+import com.minecraft.ai.companion.core.DependencyManager;
 
 import java.util.List;
 
@@ -20,9 +21,11 @@ import java.util.List;
 public class AICompanionCommandExecutor implements CommandExecutor {
     
     private final MinecraftAICompanionPlugin plugin;
+    private final DependencyManager dependencyManager;
     
-    public AICompanionCommandExecutor(MinecraftAICompanionPlugin plugin) {
+    public AICompanionCommandExecutor(MinecraftAICompanionPlugin plugin, DependencyManager dependencyManager) {
         this.plugin = plugin;
+        this.dependencyManager = dependencyManager;
     }
     
     @Override
@@ -200,6 +203,13 @@ public class AICompanionCommandExecutor implements CommandExecutor {
             case "tp":
                 return handleTeleportCommand(player);
                 
+            case "status":
+                return showDependencyStatus(player);
+                
+            case "dependencies":
+            case "deps":
+                return showInstallationInstructions(player);
+                
             case "list":
                 return showCompanionList(player);
                 
@@ -333,5 +343,34 @@ public class AICompanionCommandExecutor implements CommandExecutor {
         player.sendMessage(ChatColor.YELLOW + "/ai-settings behavior" + ChatColor.WHITE + " - 행동 설정");
         player.sendMessage(ChatColor.YELLOW + "/ai-settings info" + ChatColor.WHITE + " - 동료 정보");
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
+    }
+    
+    /**
+     * 의존성 상태 표시
+     */
+    private boolean showDependencyStatus(Player player) {
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
+        player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "🔧 플러그인 상태");
+        player.sendMessage("");
+        player.sendMessage(dependencyManager.getDependencyStatus());
+        player.sendMessage("");
+        
+        if (!dependencyManager.isProtocolLibAvailable()) {
+            player.sendMessage(ChatColor.YELLOW + "💡 명령어: " + ChatColor.WHITE + "/aic dependencies");
+            player.sendMessage(ChatColor.GRAY + "   ProtocolLib 설치 방법을 확인하세요!");
+        }
+        
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
+        return true;
+    }
+    
+    /**
+     * 설치 안내 표시
+     */
+    private boolean showInstallationInstructions(Player player) {
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
+        player.sendMessage(dependencyManager.getInstallationInstructions());
+        player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
+        return true;
     }
 } 

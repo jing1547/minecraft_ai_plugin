@@ -208,11 +208,82 @@
         ],
         "status": "pending",
         "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Fix ProtocolLib Dependency Error and Implement Safe Fallback",
+        "description": "Resolve NoClassDefFoundError for ProtocolLib and implement graceful degradation when the dependency is missing to prevent plugin crashes.",
+        "details": "Implement robust dependency handling for ProtocolLib:\n\n1. Enhance dependency verification:\n   - Create a `DependencyManager` class to check for ProtocolLib at startup\n   - Use `Bukkit.getPluginManager().getPlugin(\"ProtocolLib\")` to verify plugin presence\n   - Add version compatibility check for ProtocolLib\n\n2. Implement graceful degradation:\n   - Modify `FakePlayer` class to handle missing ProtocolLib\n   - Create interface `EntityVisualizer` with two implementations:\n     - `ProtocolLibVisualizer`: Uses ProtocolLib for advanced entity manipulation\n     - `FallbackVisualizer`: Uses basic Bukkit API for simple villager NPCs\n   - Implement factory pattern to select appropriate visualizer based on availability\n\n3. Add clear user notifications:\n   - Display console warnings when ProtocolLib is missing\n   - Send admin notification on join if they have appropriate permissions\n   - Add detailed installation instructions in console logs\n   - Create config option to suppress warnings\n\n4. Code example for dependency check:\n```java\npublic class DependencyManager {\n    private final JavaPlugin plugin;\n    private boolean protocolLibAvailable = false;\n    \n    public DependencyManager(JavaPlugin plugin) {\n        this.plugin = plugin;\n        checkDependencies();\n    }\n    \n    private void checkDependencies() {\n        Plugin protocolLib = Bukkit.getPluginManager().getPlugin(\"ProtocolLib\");\n        if (protocolLib != null && protocolLib.isEnabled()) {\n            protocolLibAvailable = true;\n            plugin.getLogger().info(\"ProtocolLib found: \" + protocolLib.getDescription().getVersion());\n        } else {\n            plugin.getLogger().warning(\"ProtocolLib not found or not enabled!\");\n            plugin.getLogger().warning(\"Advanced entity features will be disabled.\");\n            plugin.getLogger().warning(\"Install ProtocolLib: https://www.spigotmc.org/resources/protocollib.1997/\");\n        }\n    }\n    \n    public boolean isProtocolLibAvailable() {\n        return protocolLibAvailable;\n    }\n}\n```\n\n5. Implement safe error handling in command execution:\n   - Modify `/ai-spawn` command to check dependency status before execution\n   - Add fallback message explaining limited functionality\n   - Create alternative command implementation that works without ProtocolLib\n\n6. Update plugin.yml:\n   - Change ProtocolLib from 'depend' to 'softdepend'\n   - Add clear description of enhanced features with ProtocolLib",
+        "testStrategy": "1. Test plugin startup with and without ProtocolLib installed:\n   - Verify plugin loads successfully without ProtocolLib\n   - Confirm appropriate warning messages in console\n   - Check that admin notifications work correctly\n\n2. Test the `/ai-spawn` command in both scenarios:\n   - With ProtocolLib: Verify full functionality works\n   - Without ProtocolLib: Confirm fallback villager NPC appears\n   - Test error handling with various command parameters\n\n3. Verify graceful degradation:\n   - Test all plugin features with ProtocolLib disabled\n   - Confirm limited functionality works as expected\n   - Verify no exceptions are thrown during normal operation\n\n4. Test runtime dependency changes:\n   - Start server without ProtocolLib, then install and reload\n   - Start with ProtocolLib, then disable it and test fallback\n   - Verify plugin adapts correctly to dependency changes\n\n5. Performance testing:\n   - Measure any performance differences between full and fallback modes\n   - Test with multiple AI entities to ensure stability\n\n6. Compatibility testing:\n   - Test with different versions of ProtocolLib\n   - Verify behavior with outdated ProtocolLib versions",
+        "status": "done",
+        "dependencies": [
+          1,
+          2
+        ],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create DependencyManager Class",
+            "description": "Implement a robust DependencyManager class to handle ProtocolLib dependency verification at startup.",
+            "dependencies": [],
+            "details": "Create a DependencyManager class that checks for ProtocolLib presence using Bukkit.getPluginManager().getPlugin(\"ProtocolLib\"). Include version compatibility checking and proper logging. The class should provide a clean API for other components to query dependency status.\n<info added on 2025-07-10T06:47:50.523Z>\nDependencyManager 클래스 생성이 완료되었습니다.\n\n구현된 기능:\n- ProtocolLib 설치 상태 자동 감지\n- 버전 정보 확인 및 로깅\n- 한국어 상태 메시지 및 설치 안내\n- 명령어용 상태 정보 제공 메서드\n- 설치 가이드 메서드\n\n주요 메서드:\n- isProtocolLibAvailable(): 사용 가능 여부 확인\n- getDependencyStatus(): 상태 정보 문자열 반환\n- getInstallationInstructions(): 설치 안내 반환\n\n로깅 기능:\n- 성공 시: 녹색 메시지로 버전 정보 표시\n- 실패 시: 경고 메시지 + 다운로드 링크 제공\n</info added on 2025-07-10T06:47:50.523Z>",
+            "status": "done",
+            "testStrategy": "Unit test the DependencyManager with mocked Plugin instances to verify correct detection of ProtocolLib in various states (present, missing, disabled)."
+          },
+          {
+            "id": 2,
+            "title": "Implement EntityVisualizer Interface and Implementations",
+            "description": "Create an abstraction layer for entity visualization with implementations for both ProtocolLib and fallback scenarios.",
+            "dependencies": [
+              1
+            ],
+            "details": "Design an EntityVisualizer interface with methods for entity creation and manipulation. Implement two concrete classes: ProtocolLibVisualizer (using ProtocolLib features) and FallbackVisualizer (using basic Bukkit API). Use factory pattern to instantiate the appropriate implementation based on dependency availability.",
+            "status": "done",
+            "testStrategy": "Create integration tests that verify both visualizers produce expected results in their respective environments."
+          },
+          {
+            "id": 3,
+            "title": "Modify FakePlayer Class for Graceful Degradation",
+            "description": "Update the FakePlayer class to work with the new EntityVisualizer abstraction and handle missing dependencies gracefully.",
+            "dependencies": [
+              2
+            ],
+            "details": "Refactor the FakePlayer class to use the EntityVisualizer interface instead of direct ProtocolLib calls. Implement try-catch blocks for any remaining direct ProtocolLib usage. Ensure all functionality degrades gracefully when ProtocolLib is unavailable, falling back to simpler NPC implementations.",
+            "status": "done",
+            "testStrategy": "Test FakePlayer functionality in both environments (with and without ProtocolLib) to ensure it works correctly in both scenarios."
+          },
+          {
+            "id": 4,
+            "title": "Implement User Notifications System",
+            "description": "Create a comprehensive notification system for administrators about dependency status.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement console warnings when ProtocolLib is missing. Add admin notifications on join for players with appropriate permissions. Include detailed installation instructions in logs. Create configuration options to control notification behavior and frequency. Ensure messages clearly explain the impact on functionality.",
+            "status": "done",
+            "testStrategy": "Verify notifications appear correctly in console and to admins under various configuration settings and dependency states."
+          },
+          {
+            "id": 5,
+            "title": "Update Plugin Configuration and Commands",
+            "description": "Modify plugin.yml and command implementations to support the new dependency handling approach.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Change ProtocolLib from 'depend' to 'softdepend' in plugin.yml. Update command implementations to check dependency status before execution and provide appropriate feedback. Implement alternative command flows for when ProtocolLib is unavailable. Add configuration options for controlling fallback behavior.",
+            "status": "done",
+            "testStrategy": "Test command execution in both environments to ensure appropriate behavior and messaging in each scenario."
+          }
+        ]
       }
     ],
     "metadata": {
       "created": "2025-07-10T03:59:02.544Z",
-      "updated": "2025-07-10T04:09:34.648Z",
+      "updated": "2025-07-10T06:48:05.783Z",
       "description": "Tasks for master context"
     }
   }

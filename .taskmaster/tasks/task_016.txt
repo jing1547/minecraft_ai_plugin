@@ -1,0 +1,93 @@
+# Task ID: 16
+# Title: Fix ProtocolLib Dependency Error and Implement Safe Fallback
+# Status: pending
+# Dependencies: 1, 2
+# Priority: high
+# Description: Resolve NoClassDefFoundError for ProtocolLib and implement graceful degradation when the dependency is missing to prevent plugin crashes.
+# Details:
+Implement robust dependency handling for ProtocolLib:
+
+1. Enhance dependency verification:
+   - Create a `DependencyManager` class to check for ProtocolLib at startup
+   - Use `Bukkit.getPluginManager().getPlugin("ProtocolLib")` to verify plugin presence
+   - Add version compatibility check for ProtocolLib
+
+2. Implement graceful degradation:
+   - Modify `FakePlayer` class to handle missing ProtocolLib
+   - Create interface `EntityVisualizer` with two implementations:
+     - `ProtocolLibVisualizer`: Uses ProtocolLib for advanced entity manipulation
+     - `FallbackVisualizer`: Uses basic Bukkit API for simple villager NPCs
+   - Implement factory pattern to select appropriate visualizer based on availability
+
+3. Add clear user notifications:
+   - Display console warnings when ProtocolLib is missing
+   - Send admin notification on join if they have appropriate permissions
+   - Add detailed installation instructions in console logs
+   - Create config option to suppress warnings
+
+4. Code example for dependency check:
+```java
+public class DependencyManager {
+    private final JavaPlugin plugin;
+    private boolean protocolLibAvailable = false;
+    
+    public DependencyManager(JavaPlugin plugin) {
+        this.plugin = plugin;
+        checkDependencies();
+    }
+    
+    private void checkDependencies() {
+        Plugin protocolLib = Bukkit.getPluginManager().getPlugin("ProtocolLib");
+        if (protocolLib != null && protocolLib.isEnabled()) {
+            protocolLibAvailable = true;
+            plugin.getLogger().info("ProtocolLib found: " + protocolLib.getDescription().getVersion());
+        } else {
+            plugin.getLogger().warning("ProtocolLib not found or not enabled!");
+            plugin.getLogger().warning("Advanced entity features will be disabled.");
+            plugin.getLogger().warning("Install ProtocolLib: https://www.spigotmc.org/resources/protocollib.1997/");
+        }
+    }
+    
+    public boolean isProtocolLibAvailable() {
+        return protocolLibAvailable;
+    }
+}
+```
+
+5. Implement safe error handling in command execution:
+   - Modify `/ai-spawn` command to check dependency status before execution
+   - Add fallback message explaining limited functionality
+   - Create alternative command implementation that works without ProtocolLib
+
+6. Update plugin.yml:
+   - Change ProtocolLib from 'depend' to 'softdepend'
+   - Add clear description of enhanced features with ProtocolLib
+
+# Test Strategy:
+1. Test plugin startup with and without ProtocolLib installed:
+   - Verify plugin loads successfully without ProtocolLib
+   - Confirm appropriate warning messages in console
+   - Check that admin notifications work correctly
+
+2. Test the `/ai-spawn` command in both scenarios:
+   - With ProtocolLib: Verify full functionality works
+   - Without ProtocolLib: Confirm fallback villager NPC appears
+   - Test error handling with various command parameters
+
+3. Verify graceful degradation:
+   - Test all plugin features with ProtocolLib disabled
+   - Confirm limited functionality works as expected
+   - Verify no exceptions are thrown during normal operation
+
+4. Test runtime dependency changes:
+   - Start server without ProtocolLib, then install and reload
+   - Start with ProtocolLib, then disable it and test fallback
+   - Verify plugin adapts correctly to dependency changes
+
+5. Performance testing:
+   - Measure any performance differences between full and fallback modes
+   - Test with multiple AI entities to ensure stability
+
+6. Compatibility testing:
+   - Test with different versions of ProtocolLib
+   - Verify behavior with outdated ProtocolLib versions

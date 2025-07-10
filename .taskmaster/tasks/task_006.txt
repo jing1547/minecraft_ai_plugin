@@ -1,0 +1,36 @@
+# Task ID: 6
+# Title: Implement Speech-to-Text (STT) System
+# Status: pending
+# Dependencies: 1, 5
+# Priority: medium
+# Description: Develop a system to capture and process player voice input, converting it to text for AI processing.
+# Details:
+Create Speech-to-Text module:
+- Implement Google Cloud Speech-to-Text API integration (com.google.cloud:google-cloud-speech:4.23.0)
+- Create microphone input capture system using JDA (Java Discord API) or custom solution
+- Implement WebSocket server for browser-based voice capture alternative
+- Add noise filtering and voice activity detection
+- Create streaming recognition for real-time processing
+- Implement Korean language model selection
+- Add command recognition optimization
+- Create fallback to text input
+- Implement recognition confidence threshold
+
+Key components:
+- VoiceInputManager class
+- SpeechRecognitionService interface with implementations
+- AudioStreamManager for handling audio data
+- RecognitionResultProcessor
+
+Alternative implementations:
+- Support for Mozilla DeepSpeech for offline recognition
+- Whisper API integration as alternative to Google
+- Support for Azure Speech Service
+
+# Test Strategy:
+1. Test recognition accuracy with various accents
+2. Verify Korean language recognition
+3. Test noise rejection in game environments
+4. Measure latency and optimize
+5. Validate streaming recognition
+6. Test fallback mechanisms

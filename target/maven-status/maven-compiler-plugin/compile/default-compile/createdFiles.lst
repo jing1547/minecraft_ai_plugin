@@ -1,3 +1,4 @@
+com\minecraft\ai\companion\core\DependencyManager.class
 com\minecraft\ai\companion\entity\AICompanionEntity$1.class
 com\agjagjn\minecraft_ai\entity\FakePlayer$AnimationType.class
 com\agjagjn\minecraft_ai\entity\FakePlayerCompanion.class

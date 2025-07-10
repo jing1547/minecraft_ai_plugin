@@ -6,8 +6,8 @@ website: https://github.com/minecraft-ai/companion-plugin
 main: com.minecraft.ai.companion.MinecraftAICompanionPlugin
 
 api-version: 1.20
-depend: [ProtocolLib]
-softdepend: []
+depend: []
+softdepend: [ProtocolLib]
 loadbefore: []
 
 commands:

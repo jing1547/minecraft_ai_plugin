@@ -1,0 +1,31 @@
+# Task ID: 2
+# Title: Implement AI Entity Creation System
+# Status: done
+# Dependencies: 1
+# Priority: high
+# Description: Develop a system to spawn and manage AI companion entities in the Minecraft world.
+# Details:
+Create classes for AI entity management:
+- Implement EntityManager class to handle AI entity lifecycle
+- Use Bukkit/Spigot API to create custom entities (NPC type)
+- Utilize Citizens API 2.0.32+ for advanced NPC functionality if needed
+- Create spawn/despawn methods with proper cleanup
+- Implement entity persistence across server restarts
+- Add entity tracking system to maintain entity-player relationships
+- Support multiple AI entities for different players
+- Implement basic pathfinding using Minecraft's built-in NavigationSystem
+- Add methods for entity teleportation when stuck or too far from player
+- Create entity attribute system (health, tools, inventory)
+
+Key methods:
+- spawnCompanion(Player owner, Location location)
+- despawnCompanion(UUID companionId)
+- getCompanionByOwner(Player owner)
+- teleportToOwner(UUID companionId)
+
+# Test Strategy:
+1. Test entity spawning in different biomes and environments
+2. Verify entity persistence after server restart
+3. Test entity-player relationship maintenance
+4. Validate cleanup on plugin disable
+5. Measure performance impact of multiple entities

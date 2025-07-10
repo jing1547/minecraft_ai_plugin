@@ -1,5 +1,6 @@
 D:\agjagjn\dev\minecraft_ai_plugin\src\main\java\com\minecraft\ai\companion\entity\AICompanionEntity.java
 D:\agjagjn\dev\minecraft_ai_plugin\src\main\java\com\minecraft\ai\companion\MinecraftAICompanionPlugin.java
+D:\agjagjn\dev\minecraft_ai_plugin\src\main\java\com\minecraft\ai\companion\core\DependencyManager.java
 D:\agjagjn\dev\minecraft_ai_plugin\src\main\java\com\minecraft\ai\companion\core\AICompanionManager.java
 D:\agjagjn\dev\minecraft_ai_plugin\src\main\java\com\minecraft\ai\companion\commands\AICompanionCommandExecutor.java
 D:\agjagjn\dev\minecraft_ai_plugin\src\main\java\com\agjagjn\minecraft_ai\entity\FakePlayerCompanion.java

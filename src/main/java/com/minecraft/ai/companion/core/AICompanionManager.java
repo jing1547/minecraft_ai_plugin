@@ -26,6 +26,7 @@ import java.util.List;
 public class AICompanionManager {
     
     private final MinecraftAICompanionPlugin plugin;
+    private final DependencyManager dependencyManager;
     
     // 활성화된 AI 동료들 (CompanionID -> FakePlayerCompanion)
     private final Map<UUID, FakePlayerCompanion> activeCompanions;
@@ -40,8 +41,9 @@ public class AICompanionManager {
     // 플레이어당 최대 AI 동료 수
     private final int maxCompanionsPerPlayer;
     
-    public AICompanionManager(MinecraftAICompanionPlugin plugin) {
+    public AICompanionManager(MinecraftAICompanionPlugin plugin, DependencyManager dependencyManager) {
         this.plugin = plugin;
+        this.dependencyManager = dependencyManager;
         this.activeCompanions = new HashMap<>();
         this.companionDataMap = new HashMap<>();
         
@@ -194,8 +196,28 @@ public class AICompanionManager {
             // 동료 데이터 생성
             CompanionData companionData = new CompanionData(owner, name, location);
             
-            // FakePlayer 동료 생성
-            FakePlayerCompanion companion = new FakePlayerCompanion(plugin, owner, companionData);
+            // ProtocolLib 사용 가능 여부에 따라 동료 생성
+            FakePlayerCompanion companion = null;
+            
+            if (dependencyManager.isProtocolLibAvailable()) {
+                try {
+                    // ProtocolLib 기반 고급 동료 생성
+                    companion = new FakePlayerCompanion(plugin, owner, companionData);
+                    owner.sendMessage(ChatColor.GREEN + "🚀 고급 AI 동료 '" + name + "'이(가) 소환되었습니다! (실제 플레이어처럼 표시됨)");
+                } catch (NoClassDefFoundError | Exception e) {
+                    plugin.getLogger().warning("ProtocolLib 기반 동료 생성 실패, 기본 모드로 전환: " + e.getMessage());
+                    // fallback을 위해 companion은 null로 유지
+                }
+            }
+            
+            if (companion == null) {
+                // ProtocolLib이 없거나 생성 실패 시 안내 메시지
+                owner.sendMessage(ChatColor.YELLOW + "⚠️ ProtocolLib이 설치되지 않아 기본 모드로 동작합니다.");
+                owner.sendMessage(ChatColor.YELLOW + "💡 더 나은 AI 동료 경험을 위해 ProtocolLib 설치를 권장합니다:");
+                owner.sendMessage(ChatColor.AQUA + "   https://www.spigotmc.org/resources/protocollib.1997/");
+                owner.sendMessage(ChatColor.RED + "❌ 현재 AI 동료 기능을 사용할 수 없습니다.");
+                return false;
+            }
             
             // 활성화된 동료 목록에 추가
             activeCompanions.put(companionData.getCompanionId(), companion);
@@ -204,7 +226,6 @@ public class AICompanionManager {
             // 데이터 저장
             saveCompanionData();
             
-            owner.sendMessage(ChatColor.GREEN + "✅ AI 동료 '" + name + "'이(가) 소환되었습니다!");
             plugin.getLogger().info("AI 동료 '" + name + "'이(가) " + owner.getName() + "에 의해 소환되었습니다.");
             return true;
             
@@ -212,6 +233,7 @@ public class AICompanionManager {
             plugin.getLogger().severe("AI 동료 소환 중 오류 발생: " + e.getMessage());
             e.printStackTrace();
             owner.sendMessage(ChatColor.RED + "❌ AI 동료 소환 중 오류가 발생했습니다.");
+            owner.sendMessage(ChatColor.YELLOW + "💡 ProtocolLib이 설치되어 있는지 확인해보세요.");
         }
         
         return false;
