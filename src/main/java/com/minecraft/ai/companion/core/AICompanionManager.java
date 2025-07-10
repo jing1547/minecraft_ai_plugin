@@ -4,6 +4,8 @@ import com.minecraft.ai.companion.MinecraftAICompanionPlugin;
 import com.minecraft.ai.companion.data.CompanionData;
 import com.minecraft.ai.companion.entity.AICompanionEntity;
 import com.agjagjn.minecraft_ai.entity.FakePlayerCompanion;
+import com.agjagjn.minecraft_ai.entity.VillagerCompanion;
+import com.agjagjn.minecraft_ai.entity.AICompanionInterface;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -28,8 +30,8 @@ public class AICompanionManager {
     private final MinecraftAICompanionPlugin plugin;
     private final DependencyManager dependencyManager;
     
-    // 활성화된 AI 동료들 (CompanionID -> FakePlayerCompanion)
-    private final Map<UUID, FakePlayerCompanion> activeCompanions;
+    // 활성화된 AI 동료들 (CompanionID -> AICompanionInterface)
+    private final Map<UUID, AICompanionInterface> activeCompanions;
     
     // 플레이어별 동료 데이터 목록 (PlayerID -> List<CompanionData>)
     private final Map<UUID, List<CompanionData>> companionDataMap;
@@ -155,10 +157,29 @@ public class AICompanionManager {
      */
     private void respawnCompanion(Player owner, CompanionData data) {
         try {
-            FakePlayerCompanion companion = new FakePlayerCompanion(plugin, owner, data);
+            AICompanionInterface companion = null;
+            
+            // 설정에 따라 동료 유형 선택
+            boolean useVillagerMode = plugin.getConfig().getBoolean("ai.companion.use-villager-mode", true);
+            
+            if (!useVillagerMode && dependencyManager.isProtocolLibAvailable()) {
+                try {
+                    companion = new FakePlayerCompanion(plugin, owner, data);
+                    plugin.getLogger().info("ProtocolLib 기반 동료 '" + data.getName() + "'이(가) 재생성되었습니다.");
+                } catch (Exception e) {
+                    plugin.getLogger().warning("ProtocolLib 기반 동료 재생성 실패, Villager 모드로 전환: " + e.getMessage());
+                    companion = null;
+                }
+            }
+            
+            if (companion == null) {
+                // Villager 모드로 동료 생성
+                companion = new VillagerCompanion(plugin, owner, data);
+                plugin.getLogger().info("Villager 기반 동료 '" + data.getName() + "'이(가) 재생성되었습니다.");
+            }
+            
             activeCompanions.put(data.getCompanionId(), companion);
             
-            plugin.getLogger().info("AI 동료 '" + data.getName() + "'이(가) 재생성되었습니다.");
         } catch (Exception e) {
             plugin.getLogger().severe("AI 동료 재생성 실패: " + e.getMessage());
             e.printStackTrace();
@@ -196,27 +217,25 @@ public class AICompanionManager {
             // 동료 데이터 생성
             CompanionData companionData = new CompanionData(owner, name, location);
             
-            // ProtocolLib 사용 가능 여부에 따라 동료 생성
-            FakePlayerCompanion companion = null;
+            // 동료 생성 (설정에 따라 유형 선택)
+            AICompanionInterface companion = null;
+            boolean useVillagerMode = plugin.getConfig().getBoolean("ai.companion.use-villager-mode", true);
             
-            if (dependencyManager.isProtocolLibAvailable()) {
+            if (!useVillagerMode && dependencyManager.isProtocolLibAvailable()) {
                 try {
                     // ProtocolLib 기반 고급 동료 생성
                     companion = new FakePlayerCompanion(plugin, owner, companionData);
                     owner.sendMessage(ChatColor.GREEN + "🚀 고급 AI 동료 '" + name + "'이(가) 소환되었습니다! (실제 플레이어처럼 표시됨)");
                 } catch (NoClassDefFoundError | Exception e) {
-                    plugin.getLogger().warning("ProtocolLib 기반 동료 생성 실패, 기본 모드로 전환: " + e.getMessage());
+                    plugin.getLogger().warning("ProtocolLib 기반 동료 생성 실패, Villager 모드로 전환: " + e.getMessage());
                     // fallback을 위해 companion은 null로 유지
                 }
             }
             
             if (companion == null) {
-                // ProtocolLib이 없거나 생성 실패 시 안내 메시지
-                owner.sendMessage(ChatColor.YELLOW + "⚠️ ProtocolLib이 설치되지 않아 기본 모드로 동작합니다.");
-                owner.sendMessage(ChatColor.YELLOW + "💡 더 나은 AI 동료 경험을 위해 ProtocolLib 설치를 권장합니다:");
-                owner.sendMessage(ChatColor.AQUA + "   https://www.spigotmc.org/resources/protocollib.1997/");
-                owner.sendMessage(ChatColor.RED + "❌ 현재 AI 동료 기능을 사용할 수 없습니다.");
-                return false;
+                // Villager 모드로 안정적인 동료 생성
+                companion = new VillagerCompanion(plugin, owner, companionData);
+                owner.sendMessage(ChatColor.GREEN + "🤖 안정적인 AI 동료 '" + name + "'이(가) 소환되었습니다! (Villager 기반)");
             }
             
             // 활성화된 동료 목록에 추가
@@ -278,14 +297,14 @@ public class AICompanionManager {
      * @return 제거 성공 여부
      */
     public boolean despawnCompanion(UUID companionId) {
-        FakePlayerCompanion companion = activeCompanions.get(companionId);
+        AICompanionInterface companion = activeCompanions.get(companionId);
         if (companion == null) {
             return false;
         }
         
         try {
             // 엔티티 제거
-            companion.destroy();
+            companion.remove();
             
             // 목록에서 제거
             activeCompanions.remove(companionId);
@@ -330,10 +349,10 @@ public class AICompanionManager {
      * @return 성공 여부
      */
     public boolean teleportToOwner(UUID companionId) {
-        FakePlayerCompanion companion = activeCompanions.get(companionId);
+        AICompanionInterface companion = activeCompanions.get(companionId);
         if (companion == null) return false;
         
-        // FakePlayerCompanion은 자동으로 플레이어를 따라가므로 강제 텔레포트
+        // 동료를 주인에게 텔레포트
         Location ownerLoc = companion.getOwner().getLocation();
         companion.teleport(ownerLoc.clone().add(2, 0, 0));
         return true;
@@ -345,7 +364,7 @@ public class AICompanionManager {
      * @param owner 소유자 플레이어
      * @return AI 동료 엔티티 (없으면 null)
      */
-    public FakePlayerCompanion getCompanionByOwner(Player owner) {
+    public AICompanionInterface getCompanionByOwner(Player owner) {
         if (owner == null) return null;
         
         List<CompanionData> playerCompanions = companionDataMap.get(owner.getUniqueId());
@@ -353,7 +372,7 @@ public class AICompanionManager {
 
         // 활성화된 동료 중 하나를 반환
         return activeCompanions.values().stream()
-                .filter(companion -> playerCompanions.stream().anyMatch(data -> data.getCompanionId().equals(companion.getData().getCompanionId())))
+                .filter(companion -> playerCompanions.stream().anyMatch(data -> data.getCompanionId().equals(companion.getCompanionData().getCompanionId())))
                 .findFirst()
                 .orElse(null);
     }
@@ -364,7 +383,7 @@ public class AICompanionManager {
      * @param companionId 동료 ID
      * @return AI 동료 엔티티 (없으면 null)
      */
-    public FakePlayerCompanion getCompanion(UUID companionId) {
+    public AICompanionInterface getCompanion(UUID companionId) {
         return activeCompanions.get(companionId);
     }
     
@@ -392,7 +411,7 @@ public class AICompanionManager {
      * 
      * @return 동료 엔티티 목록
      */
-    public List<FakePlayerCompanion> getAllActiveCompanions() {
+    public List<AICompanionInterface> getAllActiveCompanions() {
         return new ArrayList<>(activeCompanions.values());
     }
     

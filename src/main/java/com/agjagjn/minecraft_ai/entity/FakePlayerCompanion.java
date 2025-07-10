@@ -11,7 +11,7 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.UUID;
 
-public class FakePlayerCompanion {
+public class FakePlayerCompanion implements AICompanionInterface {
     private final Plugin plugin;
     private final FakePlayer fakePlayer;
     private final Player owner;
@@ -197,5 +197,85 @@ public class FakePlayerCompanion {
     public void teleport(Location location) {
         fakePlayer.teleport(location);
         updateLocationData(location);
+    }
+    
+    // AICompanionInterface 구현 메서드들
+    
+    /**
+     * 동료 제거 (destroy와 동일)
+     */
+    @Override
+    public void remove() {
+        destroy();
+    }
+    
+    /**
+     * 동료 명령 처리
+     */
+    @Override
+    public void processCommand(String command) {
+        // FakePlayer는 시각적으로만 존재하므로 기본 명령만 처리
+        switch (command.toLowerCase()) {
+            case "come":
+            case "이리와":
+                teleportToOwner();
+                owner.sendMessage("§a🤖 " + data.getName() + ": 네, 주인님!");
+                break;
+            case "stay":
+            case "기다려":
+                // 행동 일시정지 (followDistance를 0으로 설정)
+                followDistance = 0.0;
+                owner.sendMessage("§e🤖 " + data.getName() + ": 여기서 기다리겠습니다!");
+                break;
+            case "follow":
+            case "따라와":
+                // 행동 재개
+                followDistance = 5.0;
+                owner.sendMessage("§a🤖 " + data.getName() + ": 따라가겠습니다!");
+                break;
+            default:
+                owner.sendMessage("§7🤖 " + data.getName() + ": 무슨 말씀인지 모르겠어요...");
+                break;
+        }
+    }
+    
+    /**
+     * 동료 데이터 반환
+     */
+    @Override
+    public CompanionData getCompanionData() {
+        return data;
+    }
+    
+    /**
+     * 동료 유효성 확인
+     */
+    @Override
+    public boolean isValid() {
+        return fakePlayer != null && owner != null && owner.isOnline();
+    }
+    
+    /**
+     * 동료 상태 반환
+     */
+    @Override
+    public String getStatus() {
+        if (!isValid()) {
+            return "❌ 비활성화";
+        }
+        
+        if (followDistance == 0.0) {
+            return "⏸️ 대기 중";
+        }
+        
+        return "✅ 활성화";
+    }
+    
+    /**
+     * 동료 유형 반환
+     */
+    @Override
+    public String getType() {
+        return "FakePlayer";
     }
 } 

@@ -41,6 +41,9 @@ ai:
     # 서버 재시작 시 AI 동료 재생성
     respawn-on-restart: true
     
+    # Villager 모드 사용 (true: 안정적인 Villager 기반, false: ProtocolLib 기반)
+    use-villager-mode: true
+    
     # AI 성격 설정
     personality: "친근하고 도움이 되는 마인크래프트 전문가"
     
