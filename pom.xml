@@ -130,12 +130,11 @@
             <scope>provided</scope>
         </dependency>
         
-        <!-- ProtocolLib for fake player NPCs -->
+        <!-- WebSocket for communication with Mineflayer Bot -->
         <dependency>
-            <groupId>com.comphenix.protocol</groupId>
-            <artifactId>ProtocolLib</artifactId>
-            <version>5.3.0</version>
-            <scope>provided</scope>
+            <groupId>org.java-websocket</groupId>
+            <artifactId>Java-WebSocket</artifactId>
+            <version>1.5.4</version>
         </dependency>
     </dependencies>
 

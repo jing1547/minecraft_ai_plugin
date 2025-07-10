@@ -3,36 +3,93 @@
     "tasks": [
       {
         "id": 1,
-        "title": "Setup Plugin Project Structure",
-        "description": "Initialize the Minecraft plugin project with proper structure and configuration for Spigot/Paper server compatibility.",
-        "details": "Create a Maven/Gradle project with the following structure:\n- Use Gradle 8.4+ for build management\n- Target Java 17 compatibility (required for Minecraft 1.19+)\n- Include Paper-API 1.19.4-R0.1-SNAPSHOT as dependency\n- Create plugin.yml with proper metadata\n- Setup config.yml for API keys and settings\n- Implement main plugin class with onEnable/onDisable methods\n- Create packages for modules: ai, voice, entity, commands, events, config\n- Setup logging framework (SLF4J with Log4j2)\n- Implement configuration manager for handling plugin settings\n\nDependencies to include:\n- paper-api:1.19.4-R0.1-SNAPSHOT\n- gson:2.10.1 (for JSON processing)\n- slf4j-api:2.0.9\n- log4j-core:2.20.0",
-        "testStrategy": "1. Verify plugin loads successfully on Paper 1.19.4 server\n2. Test configuration loading/saving\n3. Validate plugin.yml format\n4. Check proper initialization and shutdown sequences\n5. Verify compatibility with Java 17",
+        "title": "Setup Basic Project Structure",
+        "description": "Initialize both Java Plugin and Node.js Mineflayer projects with proper directory structure, dependencies, and build configurations.",
+        "details": "For Java Plugin:\n1. Create a Maven/Gradle project with Java 17+\n2. Add Spigot/Paper 1.20.4+ API dependency\n3. Setup plugin.yml with proper metadata\n4. Add dependencies: Gson 2.10.1+, Java-WebSocket 1.5.3+\n5. Create basic package structure (com.minecraft.aicompanion)\n\nFor Mineflayer Bot:\n1. Initialize Node.js project (npm init) with Node.js 18+\n2. Install dependencies: mineflayer 4.8.1+, ws 8.13.0+ (WebSocket), mineflayer-pathfinder 2.4.2+\n3. Create basic directory structure (src/, config/, etc.)\n4. Setup TypeScript (optional but recommended) with tsconfig.json\n5. Create basic .env file template for configuration\n\nCreate shared configuration files for development environment setup and documentation.",
+        "testStrategy": "1. Verify project builds successfully without errors\n2. Confirm all dependencies resolve correctly\n3. Test basic plugin loading in a test Minecraft server\n4. Verify Mineflayer bot can connect to a test server\n5. Document setup process for development team",
         "priority": "high",
         "dependencies": [],
-        "status": "done",
+        "status": "pending",
         "subtasks": []
       },
       {
         "id": 2,
-        "title": "Implement AI Entity Creation System",
-        "description": "Develop a system to spawn and manage AI companion entities in the Minecraft world.",
-        "details": "Create classes for AI entity management:\n- Implement EntityManager class to handle AI entity lifecycle\n- Use Bukkit/Spigot API to create custom entities (NPC type)\n- Utilize Citizens API 2.0.32+ for advanced NPC functionality if needed\n- Create spawn/despawn methods with proper cleanup\n- Implement entity persistence across server restarts\n- Add entity tracking system to maintain entity-player relationships\n- Support multiple AI entities for different players\n- Implement basic pathfinding using Minecraft's built-in NavigationSystem\n- Add methods for entity teleportation when stuck or too far from player\n- Create entity attribute system (health, tools, inventory)\n\nKey methods:\n- spawnCompanion(Player owner, Location location)\n- despawnCompanion(UUID companionId)\n- getCompanionByOwner(Player owner)\n- teleportToOwner(UUID companionId)",
-        "testStrategy": "1. Test entity spawning in different biomes and environments\n2. Verify entity persistence after server restart\n3. Test entity-player relationship maintenance\n4. Validate cleanup on plugin disable\n5. Measure performance impact of multiple entities",
+        "title": "Implement WebSocket Communication System",
+        "description": "Develop a bidirectional WebSocket communication system between the Java Plugin and Mineflayer Bot with a standardized message protocol.",
+        "details": "1. Create WebSocket server in Java Plugin using Java-WebSocket library:\n   - Implement WebSocketServer class with onOpen, onClose, onMessage, and onError handlers\n   - Add connection management for multiple bots\n   - Implement heartbeat mechanism for connection monitoring\n\n2. Create WebSocket client in Mineflayer Bot using ws library:\n   - Implement connection with automatic reconnection logic\n   - Add event handlers for messages, connection, and errors\n\n3. Design and implement JSON message protocol as specified in PRD:\n   ```json\n   {\n     \"type\": \"command|response|event\",\n     \"id\": \"unique_message_id\",\n     \"timestamp\": \"ISO_8601_timestamp\",\n     \"data\": {\n       \"action\": \"move|attack|build|speak|...\",\n       \"parameters\": {...},\n       \"result\": {...}\n     }\n   }\n   ```\n\n4. Implement message serialization/deserialization using Gson (Java) and JSON.parse/stringify (Node.js)\n5. Add message queue system to handle communication delays\n6. Implement error handling and logging for communication issues",
+        "testStrategy": "1. Unit tests for message serialization/deserialization\n2. Integration tests for WebSocket connection establishment\n3. Test reconnection logic by forcibly disconnecting\n4. Stress test with high message volume\n5. Test error handling with malformed messages\n6. Measure and optimize latency between components",
         "priority": "high",
         "dependencies": [
           1
         ],
-        "status": "done",
-        "subtasks": []
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement Java WebSocket Server",
+            "description": "Create a WebSocket server in the Java Plugin using the Java-WebSocket library with proper connection management and event handlers.",
+            "dependencies": [],
+            "details": "Create a WebSocketServer class that extends the Java-WebSocket library. Implement onOpen, onClose, onMessage, and onError handlers. Add a connection management system to handle multiple bot connections. Implement a heartbeat mechanism to monitor connection status. Add configuration options for port and connection settings.",
+            "status": "pending",
+            "testStrategy": "Create unit tests for server initialization, connection handling, and message processing. Test multiple simultaneous connections and verify heartbeat functionality."
+          },
+          {
+            "id": 2,
+            "title": "Implement Mineflayer WebSocket Client",
+            "description": "Create a WebSocket client in the Mineflayer Bot using the ws library with reconnection logic and event handlers.",
+            "dependencies": [],
+            "details": "Implement a WebSocket client using the ws library. Add connection logic with automatic reconnection capabilities. Create event handlers for connection, messages, errors, and disconnection. Implement timeout handling and connection status monitoring. Add configuration options for server address and reconnection parameters.",
+            "status": "pending",
+            "testStrategy": "Test client connection, reconnection logic, and event handling. Verify the client can recover from various network failure scenarios."
+          },
+          {
+            "id": 3,
+            "title": "Design and Implement JSON Message Protocol",
+            "description": "Implement the standardized JSON message protocol for communication between the Java Plugin and Mineflayer Bot.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create message type definitions for commands, responses, and events. Implement the JSON structure as specified in the PRD. Create utility classes/functions for message creation and validation. Define specific message formats for different actions (move, attack, build, etc.). Document the protocol for future reference.",
+            "status": "pending",
+            "testStrategy": "Create test cases for each message type. Validate message structure against the defined schema. Test edge cases with invalid or malformed messages."
+          },
+          {
+            "id": 4,
+            "title": "Implement Message Serialization and Queue System",
+            "description": "Create serialization/deserialization logic and a message queue system to handle communication delays.",
+            "dependencies": [
+              3
+            ],
+            "details": "Implement message serialization/deserialization using Gson in Java and JSON.parse/stringify in Node.js. Create a message queue system with priority handling. Implement retry logic for failed message delivery. Add mechanisms to handle out-of-order messages. Create a system to track message delivery status.",
+            "status": "pending",
+            "testStrategy": "Test serialization/deserialization with various message types. Verify queue behavior under high load. Test message ordering and priority handling."
+          },
+          {
+            "id": 5,
+            "title": "Implement Error Handling and System Integration",
+            "description": "Add comprehensive error handling, logging, and integrate the WebSocket system with both the Java Plugin and Mineflayer Bot.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Implement error handling for all communication scenarios. Create a logging system for communication events and errors. Integrate the WebSocket system with the Java Plugin's command system. Connect the WebSocket client to the Mineflayer Bot's action system. Create documentation for the entire communication system. Perform end-to-end testing of the complete system.",
+            "status": "pending",
+            "testStrategy": "Conduct integration tests between Java Plugin and Mineflayer Bot. Test error recovery in various failure scenarios. Verify system behavior under network stress conditions."
+          }
+        ]
       },
       {
         "id": 3,
-        "title": "Develop Basic Movement and Behavior System",
-        "description": "Create a system for AI entity movement, navigation, and basic behaviors in the Minecraft world.",
-        "details": "Implement behavior and movement systems:\n- Create BehaviorManager class to handle AI decision making\n- Implement behavior tree architecture for decision making\n- Use Bukkit's PathfinderGoal system for navigation\n- Create custom PathfinderGoals for companion-specific behaviors\n- Implement basic behaviors: follow player, idle, gather resources, combat\n- Add behavior priority system\n- Create task queue for sequential actions\n- Implement collision avoidance and obstacle navigation\n- Add stuck detection and recovery\n- Create behavior interruption system for priority actions\n\nBehavior implementations:\n- FollowOwnerGoal extends PathfinderGoal\n- GatherResourceGoal extends PathfinderGoal\n- CombatGoal extends PathfinderGoal\n- IdleGoal extends PathfinderGoal\n\nUse NMS (Net Minecraft Server) or reflection if necessary for advanced pathfinding, but prefer Bukkit API when possible.",
-        "testStrategy": "1. Test navigation in complex terrain (mountains, caves, water)\n2. Verify proper following behavior at different distances\n3. Test behavior switching based on context\n4. Validate stuck detection and recovery\n5. Measure pathfinding performance in complex environments",
+        "title": "Develop Basic Mineflayer Bot Functionality",
+        "description": "Implement core Mineflayer bot functionality including connection to Minecraft server, basic movement, and world interaction capabilities.",
+        "details": "1. Create main bot class with connection management:\n   - Implement server connection with configurable credentials\n   - Add event listeners for game events (spawn, death, kicked, etc.)\n   - Implement reconnection logic\n\n2. Implement basic movement system using mineflayer-pathfinder:\n   - Create movement API (moveToPlayer, moveToLocation, followPlayer)\n   - Implement pathfinding with obstacle avoidance\n   - Add movement queue for sequential movements\n\n3. Implement basic world interaction:\n   - Block placement and breaking\n   - Item collection and inventory management\n   - Basic crafting functionality\n\n4. Create state management system:\n   - Track bot position, health, inventory\n   - Monitor nearby entities and blocks\n   - Create event system for state changes\n\n5. Implement command handler to process commands from Java Plugin:\n   - Parse incoming WebSocket messages\n   - Route to appropriate handler functions\n   - Return results/status\n\nUse latest mineflayer-pathfinder features for improved navigation and the new physics engine for more accurate movement.",
+        "testStrategy": "1. Test connection to various server versions (1.20.4+)\n2. Verify movement accuracy and pathfinding in different terrains\n3. Test block interaction in various scenarios\n4. Measure performance under different server loads\n5. Verify command handling with mock WebSocket messages\n6. Test reconnection under various disconnection scenarios",
         "priority": "high",
         "dependencies": [
+          1,
           2
         ],
         "status": "pending",
@@ -40,24 +97,25 @@
       },
       {
         "id": 4,
-        "title": "Implement OpenAI GPT Integration",
-        "description": "Integrate OpenAI's GPT API for natural language processing and AI decision making.",
-        "details": "Create OpenAI integration module:\n- Implement OpenAIService class for API communication\n- Use OpenAI Java client library (com.theokanning.openai-gpt3-java:0.14.0)\n- Create prompt engineering system for context-aware responses\n- Implement conversation history management with context window optimization\n- Add rate limiting and token usage tracking\n- Create fallback mechanisms for API failures\n- Implement caching for common responses\n- Design game-specific prompt templates\n- Add system for maintaining AI personality and knowledge\n- Implement asynchronous processing to prevent blocking main thread\n\nKey components:\n- PromptBuilder class for constructing effective prompts\n- ConversationManager for maintaining chat history\n- ResponseProcessor for parsing and acting on AI responses\n- AIMemory class for persistent knowledge storage\n\nAlternative implementations:\n- Support for local LLMs via LlamaCpp or similar for offline operation\n- Configurable model selection (GPT-3.5-turbo, GPT-4, etc.)",
-        "testStrategy": "1. Test API connectivity and error handling\n2. Verify prompt effectiveness for game-specific scenarios\n3. Measure response times and optimize\n4. Test token usage optimization\n5. Validate conversation context maintenance\n6. Test fallback mechanisms during API outages",
+        "title": "Implement Java Plugin Core and Command System",
+        "description": "Develop the core Java Plugin structure with Minecraft server integration, command system, and event handling.",
+        "details": "1. Create main plugin class extending JavaPlugin:\n   - Implement onEnable and onDisable methods\n   - Setup configuration loading/saving\n   - Initialize WebSocket server\n\n2. Implement command system:\n   - Create base command framework with subcommand support\n   - Implement permission checking\n   - Add commands: /aicompanion spawn, /aicompanion remove, /aicompanion config\n   - Implement tab completion for commands\n\n3. Create event listeners:\n   - Listen for player join/quit events\n   - Monitor player chat for AI interaction\n   - Track player movement for bot following\n\n4. Implement configuration system:\n   - Create config.yml with default values\n   - Add runtime configuration updates\n   - Implement per-player settings\n\n5. Add plugin metrics and logging:\n   - Implement detailed logging system\n   - Add performance monitoring\n   - Setup error reporting\n\nUse the latest Paper API features for improved performance and the Adventure API for modern text components.",
+        "testStrategy": "1. Test plugin loading on different server versions\n2. Verify command execution and permission handling\n3. Test configuration loading/saving\n4. Verify event listeners with mock events\n5. Test plugin metrics for accuracy\n6. Perform load testing to ensure server performance isn't impacted",
         "priority": "high",
         "dependencies": [
-          1
+          1,
+          2
         ],
         "status": "pending",
         "subtasks": []
       },
       {
         "id": 5,
-        "title": "Develop Korean Language Processing Module",
-        "description": "Implement Korean language processing capabilities for natural communication with Korean-speaking players.",
-        "details": "Create Korean language processing module:\n- Integrate Nori (노리) Korean analyzer or KoNLPy for Korean text processing\n- Implement Korean-specific prompt engineering for OpenAI\n- Create Korean language detection system\n- Add Korean gaming terminology dictionary\n- Implement Korean cultural context awareness\n- Create transliteration system for game terms\n- Add Korean honorific processing\n- Implement Korean sentence segmentation for TTS\n- Create fallback for unknown Korean terms\n\nKey components:\n- KoreanLanguageProcessor class\n- KoreanGamingTerminology dictionary\n- KoreanContextEnhancer for cultural context\n\nDependencies:\n- KoNLPy 0.6.0 (requires Python bridge via ProcessBuilder)\n- or Nori analyzer from Elasticsearch\n- Consider using Komoran 3.3.9 (pure Java Korean analyzer)\n\nAlternative approach:\n- Rely on OpenAI's built-in Korean processing capabilities with custom gaming terminology prompts",
-        "testStrategy": "1. Test Korean text parsing accuracy\n2. Verify gaming terminology recognition\n3. Test cultural context understanding\n4. Validate honorific processing\n5. Measure processing performance\n6. Test with various Korean dialects and informal speech",
-        "priority": "high",
+        "title": "Implement Speech-to-Text (STT) System",
+        "description": "Integrate Google Cloud Speech-to-Text API for real-time voice recognition with Korean language support and background noise filtering.",
+        "details": "1. Setup Google Cloud Speech-to-Text client in Java Plugin:\n   - Add Google Cloud Speech libraries (com.google.cloud:google-cloud-speech:4.19.0)\n   - Implement authentication with service account\n   - Configure Korean language model (ko-KR)\n\n2. Create audio capture system:\n   - Implement client-side mod or web interface for audio capture\n   - Add WebSocket audio streaming to plugin\n   - Implement audio preprocessing (noise reduction, normalization)\n\n3. Develop real-time transcription pipeline:\n   - Configure streaming recognition requests\n   - Implement interim results handling\n   - Add confidence threshold filtering\n\n4. Create context-aware recognition:\n   - Add Minecraft-specific vocabulary (blocks, items, commands)\n   - Implement player name recognition\n   - Create custom speech adaptation for game terms\n\n5. Implement fallback mechanisms:\n   - Add offline fallback for API outages\n   - Implement text input alternative\n   - Create error recovery for failed transcriptions\n\nUse the latest Google Cloud Speech-to-Text features including Adaptive Noise Suppression and Enhanced Models for improved accuracy in gaming environments.",
+        "testStrategy": "1. Test transcription accuracy with various Korean accents\n2. Measure latency under different network conditions\n3. Test noise filtering in different environments\n4. Verify Minecraft-specific term recognition\n5. Test fallback mechanisms by simulating API failures\n6. Conduct user testing with different microphones and setups",
+        "priority": "medium",
         "dependencies": [
           4
         ],
@@ -66,41 +124,40 @@
       },
       {
         "id": 6,
-        "title": "Implement Speech-to-Text (STT) System",
-        "description": "Develop a system to capture and process player voice input, converting it to text for AI processing.",
-        "details": "Create Speech-to-Text module:\n- Implement Google Cloud Speech-to-Text API integration (com.google.cloud:google-cloud-speech:4.23.0)\n- Create microphone input capture system using JDA (Java Discord API) or custom solution\n- Implement WebSocket server for browser-based voice capture alternative\n- Add noise filtering and voice activity detection\n- Create streaming recognition for real-time processing\n- Implement Korean language model selection\n- Add command recognition optimization\n- Create fallback to text input\n- Implement recognition confidence threshold\n\nKey components:\n- VoiceInputManager class\n- SpeechRecognitionService interface with implementations\n- AudioStreamManager for handling audio data\n- RecognitionResultProcessor\n\nAlternative implementations:\n- Support for Mozilla DeepSpeech for offline recognition\n- Whisper API integration as alternative to Google\n- Support for Azure Speech Service",
-        "testStrategy": "1. Test recognition accuracy with various accents\n2. Verify Korean language recognition\n3. Test noise rejection in game environments\n4. Measure latency and optimize\n5. Validate streaming recognition\n6. Test fallback mechanisms",
+        "title": "Implement Text-to-Speech (TTS) System",
+        "description": "Integrate Google Cloud Text-to-Speech API for natural Korean voice synthesis with emotion expression capabilities.",
+        "details": "1. Setup Google Cloud Text-to-Speech client in Java Plugin:\n   - Add Google Cloud TTS libraries (com.google.cloud:google-cloud-texttospeech:2.32.0)\n   - Implement authentication with service account\n   - Configure high-quality Korean voice models\n\n2. Create voice synthesis system:\n   - Implement SSML (Speech Synthesis Markup Language) generation\n   - Add emotion markers for different speech styles\n   - Create voice parameter customization (pitch, speed, etc.)\n\n3. Develop audio playback system:\n   - Implement client-side mod for audio playback\n   - Add audio streaming via WebSocket\n   - Create audio caching for common phrases\n\n4. Implement emotion-based voice modulation:\n   - Map AI emotional states to voice parameters\n   - Create different speaking styles (happy, sad, excited, etc.)\n   - Add emphasis for important words\n\n5. Optimize for performance:\n   - Implement response caching\n   - Add concurrent synthesis for multiple bots\n   - Create fallback to text for performance issues\n\nUse the latest WaveNet and Neural2 voices for Korean which provide more natural intonation and emotional expression.",
+        "testStrategy": "1. Test voice naturalness with native Korean speakers\n2. Measure synthesis and playback latency\n3. Verify emotion expression accuracy\n4. Test concurrent synthesis performance\n5. Verify audio quality across different client setups\n6. Test caching system effectiveness",
         "priority": "medium",
         "dependencies": [
-          1,
-          5
+          4
         ],
         "status": "pending",
         "subtasks": []
       },
       {
         "id": 7,
-        "title": "Implement Text-to-Speech (TTS) System",
-        "description": "Develop a system to convert AI text responses to natural-sounding Korean speech output.",
-        "details": "Create Text-to-Speech module:\n- Implement Naver Clova Voice API integration (primary option for Korean)\n- Add Google Cloud TTS as fallback (com.google.cloud:google-cloud-texttospeech:2.32.0)\n- Create voice selection system (gender, age, tone)\n- Implement SSML for emotion and emphasis\n- Add audio caching for common phrases\n- Create audio playback system using JDA or custom solution\n- Implement text preprocessing for better pronunciation\n- Add speech rate and pitch adjustment\n- Create audio queue for sequential playback\n\nKey components:\n- TTSService interface with implementations\n- VoiceProfileManager for voice customization\n- AudioPlaybackManager\n- SSMLBuilder for advanced speech markup\n\nTechnical considerations:\n- Use LavaPlayer 1.3.78 for audio playback\n- Implement audio streaming to minimize latency\n- Consider client-side TTS for performance",
-        "testStrategy": "1. Test Korean pronunciation accuracy\n2. Verify emotion expression through SSML\n3. Test audio playback in game environment\n4. Measure latency and optimize\n5. Validate caching effectiveness\n6. Test fallback mechanisms",
-        "priority": "medium",
+        "title": "Integrate OpenAI GPT API for Conversation",
+        "description": "Implement natural language processing using OpenAI's GPT API with context management, Korean language optimization, and character personality system.",
+        "details": "1. Setup OpenAI API integration:\n   - Add OpenAI client library (com.theokanning.openai-gpt3-java:service:0.16.0)\n   - Implement API key management and rate limiting\n   - Configure model selection (GPT-4 recommended, fallback to 3.5-turbo)\n\n2. Design conversation system:\n   - Implement conversation history management\n   - Create context window optimization\n   - Add token counting and management\n\n3. Develop character personality framework:\n   - Create personality templates with traits and behaviors\n   - Implement emotion system with state transitions\n   - Add memory system for player interactions\n\n4. Optimize for Korean language:\n   - Create Korean-specific prompt engineering\n   - Implement Korean cultural context awareness\n   - Add Korean linguistic nuance handling\n\n5. Implement game context awareness:\n   - Add game state information to prompts\n   - Create situation-aware responses\n   - Implement action suggestion based on context\n\n6. Add conversation management:\n   - Implement conversation threading\n   - Create topic tracking\n   - Add conversation summarization for long interactions\n\nUse the latest OpenAI API features including function calling for structured outputs and the new context window sizes for better conversation memory.",
+        "testStrategy": "1. Evaluate conversation naturalness with Korean speakers\n2. Test personality consistency across sessions\n3. Measure response relevance to game context\n4. Test emotion system transitions\n5. Verify memory retention of player preferences\n6. Measure API usage and optimize for cost efficiency\n7. Test fallback mechanisms during API outages",
+        "priority": "high",
         "dependencies": [
-          1,
-          5
+          4,
+          5,
+          6
         ],
         "status": "pending",
         "subtasks": []
       },
       {
         "id": 8,
-        "title": "Develop Player Interaction Monitoring System",
-        "description": "Create a system to monitor and analyze player actions, location, and game context to inform AI behavior.",
-        "details": "Implement player monitoring system:\n- Create PlayerMonitor class to track player activities\n- Implement event listeners for player actions (BlockBreakEvent, EntityDamageEvent, etc.)\n- Create location tracking with efficient update frequency\n- Add inventory monitoring system\n- Implement player status tracking (health, hunger, effects)\n- Create player goal inference system\n- Add context awareness (time of day, biome, nearby entities)\n- Implement activity history with recency weighting\n\nKey components:\n- PlayerActivityTracker\n- LocationMonitor with geofencing\n- InventoryAnalyzer\n- PlayerContextBuilder\n- PlayerGoalInferenceEngine\n\nEvent listeners:\n- Register for relevant Bukkit events\n- Use PlayerMoveEvent with throttling\n- Monitor chat for additional context",
-        "testStrategy": "1. Test accuracy of player activity detection\n2. Verify location tracking precision\n3. Test goal inference in various scenarios\n4. Measure performance impact\n5. Validate context building\n6. Test with multiple players",
+        "title": "Develop Advanced Mineflayer Bot Capabilities",
+        "description": "Implement advanced bot capabilities including combat, building, resource gathering, and autonomous behavior systems.",
+        "details": "1. Implement combat system using mineflayer-pvp (^1.3.2):\n   - Add target selection logic\n   - Implement weapon selection based on situation\n   - Create combat strategies (melee, ranged, defensive)\n   - Add player protection mode\n\n2. Develop building system with mineflayer-builder (^1.4.0):\n   - Implement schematic loading and parsing\n   - Create block selection and placement optimization\n   - Add progress tracking and reporting\n   - Implement error recovery for failed placements\n\n3. Create resource gathering system:\n   - Implement resource identification and prioritization\n   - Add efficient mining patterns\n   - Create inventory management and organization\n   - Implement tool selection and durability management\n\n4. Develop autonomous behavior system:\n   - Create behavior tree for decision making\n   - Implement goal-based planning\n   - Add idle behaviors and exploration\n   - Create safety mechanisms (lava avoidance, fall prevention)\n\n5. Implement advanced pathfinding with mineflayer-pathfinder:\n   - Add dynamic obstacle avoidance\n   - Implement efficient path recalculation\n   - Create specialized movement (swimming, climbing, etc.)\n   - Add group movement coordination\n\nUse the latest prismarine-physics for accurate movement and the new pathfinder features for improved navigation in complex environments.",
+        "testStrategy": "1. Test combat effectiveness against various mob types\n2. Verify building accuracy with complex structures\n3. Measure resource gathering efficiency\n4. Test autonomous behavior in various environments\n5. Verify pathfinding in challenging terrains\n6. Test performance under server load\n7. Conduct stress tests with multiple bots",
         "priority": "medium",
         "dependencies": [
-          1,
           3
         ],
         "status": "pending",
@@ -108,324 +165,252 @@
       },
       {
         "id": 9,
-        "title": "Implement AI Decision Making Engine",
-        "description": "Develop an advanced decision-making system that combines game state, player context, and AI capabilities.",
-        "details": "Create AI decision engine:\n- Implement DecisionEngine class as central coordinator\n- Create game state analyzer for environmental awareness\n- Implement goal prioritization system\n- Add action planning with A* or similar algorithm\n- Create resource management logic\n- Implement combat strategy system\n- Add building and crafting logic\n- Create exploration and navigation decision making\n- Implement cooperation logic with player\n- Add learning from player behavior\n\nKey components:\n- GameStateAnalyzer\n- GoalSelector\n- ActionPlanner\n- ResourceManager\n- CombatStrategist\n- BuildingPlanner\n\nIntegration points:\n- Connect with OpenAI for high-level decisions\n- Use behavior system for execution\n- Leverage player monitoring for context",
-        "testStrategy": "1. Test decision quality in various scenarios\n2. Verify goal prioritization logic\n3. Test action planning efficiency\n4. Measure decision latency\n5. Validate resource management\n6. Test combat strategy effectiveness",
-        "priority": "high",
+        "title": "Implement Skin and Model Customization System",
+        "description": "Develop a system for real-time skin changes, custom model support, and emotion-based appearance modifications.",
+        "details": "1. Implement skin management system in Java Plugin:\n   - Create skin loading from files and URLs\n   - Add skin caching and preloading\n   - Implement skin rotation for variety\n   - Create player-specific skin preferences\n\n2. Develop custom model support:\n   - Research and implement Yes Steve Model integration\n   - Add custom model data packet handling\n   - Create model verification and validation\n   - Implement fallback for unsupported clients\n\n3. Create emotion-based appearance system:\n   - Map emotional states to visual changes\n   - Implement real-time skin switching based on emotions\n   - Add special effects for emotional states (particles, sounds)\n   - Create smooth transitions between states\n\n4. Implement client-side rendering optimizations:\n   - Add client detection for feature support\n   - Implement progressive loading for complex models\n   - Create LOD (Level of Detail) system for distance\n\n5. Develop appearance customization commands:\n   - Add commands for manual skin/model changes\n   - Create preset management\n   - Implement randomization options\n\nUse ProtocolLib (5.0.0+) for packet manipulation and the latest resource pack features for custom models.",
+        "testStrategy": "1. Test skin loading from various sources\n2. Verify custom model rendering on different clients\n3. Test emotion-based appearance changes\n4. Measure performance impact of model complexity\n5. Verify compatibility with various client versions\n6. Test appearance persistence across server restarts",
+        "priority": "low",
         "dependencies": [
-          3,
-          4,
-          8
+          4
         ],
         "status": "pending",
         "subtasks": []
       },
       {
         "id": 10,
-        "title": "Develop Resource Gathering and Inventory Management",
-        "description": "Create systems for AI companions to gather resources, manage inventory, and assist with item management.",
-        "details": "Implement resource gathering system:\n- Create ResourceManager class for tracking and prioritizing resources\n- Implement block identification system (valuable vs. common)\n- Add tool selection logic based on block type\n- Create efficient mining patterns\n- Implement inventory management\n- Add item sorting and organization\n- Create crafting logic\n- Implement resource sharing with player\n- Add chest interaction capabilities\n- Create furnace and other workstation usage\n\nKey components:\n- BlockAnalyzer for identifying valuable blocks\n- ToolSelector for optimal tool choice\n- InventoryOrganizer\n- CraftingPlanner\n- ChestInteractionHandler\n\nTechnical approach:\n- Use BlockData API for block identification\n- Implement A* pathfinding to resources\n- Use recipe discovery system",
-        "testStrategy": "1. Test resource identification accuracy\n2. Verify tool selection logic\n3. Test inventory management efficiency\n4. Measure gathering speed\n5. Validate crafting logic\n6. Test chest interaction reliability",
+        "title": "Develop Player Interaction and Learning System",
+        "description": "Create a system for monitoring player behavior, learning preferences, and adapting AI responses based on interaction history.",
+        "details": "1. Implement player tracking system:\n   - Create player activity monitoring\n   - Add location and movement tracking\n   - Implement interaction history recording\n   - Create privacy controls and data management\n\n2. Develop preference learning system:\n   - Implement basic machine learning for preference detection\n   - Create feature extraction from player behavior\n   - Add feedback mechanism for response quality\n   - Implement progressive adaptation\n\n3. Create relationship modeling:\n   - Implement relationship scores and categories\n   - Add relationship evolution based on interactions\n   - Create relationship-specific responses\n   - Implement relationship maintenance behaviors\n\n4. Develop contextual memory system:\n   - Create persistent memory storage\n   - Implement memory retrieval based on context\n   - Add memory consolidation for long-term storage\n   - Create memory importance ranking\n\n5. Implement adaptive behavior system:\n   - Create behavior modification based on player feedback\n   - Implement style matching to player communication\n   - Add interest modeling for conversation topics\n   - Create adaptive assistance levels\n\nUse modern Java persistence frameworks like Hibernate ORM (6.2.0+) for efficient data storage and retrieval.",
+        "testStrategy": "1. Test preference detection accuracy\n2. Verify adaptation over time with simulated interactions\n3. Test memory persistence and retrieval\n4. Measure relationship model accuracy\n5. Verify privacy controls and data security\n6. Test system with multiple players simultaneously\n7. Conduct longitudinal testing for learning effectiveness",
         "priority": "medium",
         "dependencies": [
-          3,
-          9
+          7
         ],
         "status": "pending",
         "subtasks": []
       },
       {
         "id": 11,
-        "title": "Implement Combat and Defensive Systems",
-        "description": "Develop AI combat capabilities for defending the player and engaging hostile entities.",
-        "details": "Create combat system:\n- Implement CombatManager class for battle coordination\n- Create threat assessment system\n- Add weapon selection logic\n- Implement targeting system\n- Create combat movement patterns (strafing, retreating)\n- Add ranged combat capabilities\n- Implement melee combat techniques\n- Create defensive positioning\n- Add player protection priority\n- Implement group tactics for multiple enemies\n\nKey components:\n- ThreatAnalyzer\n- WeaponSelector\n- TargetingSystem\n- CombatMovementController\n- DefensivePositioner\n\nTechnical approach:\n- Use entity metadata for threat assessment\n- Implement ray tracing for ranged attacks\n- Create custom pathfinding for combat movement",
-        "testStrategy": "1. Test threat assessment accuracy\n2. Verify weapon selection logic\n3. Test combat effectiveness against various mobs\n4. Measure survival rate\n5. Validate player protection\n6. Test group tactics",
-        "priority": "medium",
+        "title": "Implement State Synchronization System",
+        "description": "Develop a robust system for synchronizing state between the Java Plugin and Mineflayer Bot, including position, inventory, and world state.",
+        "details": "1. Design state synchronization protocol:\n   - Define state objects and serialization format\n   - Implement change detection and delta updates\n   - Create priority-based update system\n   - Add timestamp and version tracking\n\n2. Implement bot state tracking in Mineflayer:\n   - Create comprehensive state object (position, inventory, health, etc.)\n   - Add change detection and event emission\n   - Implement state snapshot creation\n   - Create periodic full state synchronization\n\n3. Develop state reception and processing in Java Plugin:\n   - Implement state update handlers\n   - Create state validation and error correction\n   - Add state interpolation for smooth updates\n   - Implement state caching and prediction\n\n4. Create mission and goal synchronization:\n   - Implement mission object model\n   - Add progress tracking and reporting\n   - Create mission decomposition into tasks\n   - Implement priority-based mission scheduling\n\n5. Develop world state synchronization:\n   - Implement chunk data synchronization\n   - Add entity tracking and updates\n   - Create world event propagation\n   - Implement selective world state updates\n\nUse efficient binary serialization like Protocol Buffers or MessagePack for reduced bandwidth and faster processing.",
+        "testStrategy": "1. Measure synchronization latency under various conditions\n2. Test state consistency between components\n3. Verify recovery from communication interruptions\n4. Test bandwidth usage optimization\n5. Verify mission tracking accuracy\n6. Test with simulated high-latency connections\n7. Measure CPU and memory impact of synchronization",
+        "priority": "high",
         "dependencies": [
+          2,
           3,
-          9
+          4
         ],
         "status": "pending",
         "subtasks": []
       },
       {
         "id": 12,
-        "title": "Implement Yes Steve Model Integration",
-        "description": "Integrate with the Yes Steve Model mod to provide visual representation and animation for the AI companion.",
-        "details": "Create Yes Steve Model integration:\n- Research Yes Steve Model API and capabilities\n- Implement YesSteveIntegration class for mod communication\n- Create avatar customization system\n- Add animation controller\n- Implement facial expression system\n- Create lip-sync coordination with TTS\n- Add emote system for non-verbal communication\n- Implement gesture system for pointing at objects\n- Create smooth movement transitions\n\nKey components:\n- AvatarCustomizer\n- AnimationController\n- FacialExpressionManager\n- LipSyncCoordinator\n- EmoteManager\n\nTechnical approach:\n- Use reflection or API hooks for mod integration\n- Implement packet interception if needed\n- Create fallback for servers without the mod",
-        "testStrategy": "1. Test mod detection and compatibility\n2. Verify avatar customization\n3. Test animation smoothness\n4. Measure lip-sync accuracy\n5. Validate facial expressions\n6. Test with various mod versions",
-        "priority": "medium",
-        "dependencies": [
-          2,
-          7
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 13,
-        "title": "Develop Building and Construction System",
-        "description": "Create a system for AI companions to assist with building, following blueprints, and creative construction.",
-        "details": "Implement building system:\n- Create BuildingManager class for construction coordination\n- Implement blueprint recognition and following\n- Add block placement optimization\n- Create structure recognition\n- Implement style matching for existing builds\n- Add material gathering for projects\n- Create collaborative building capabilities\n- Implement building repair functionality\n- Add aesthetic improvement suggestions\n\nKey components:\n- BlueprintInterpreter\n- BlockPlacer\n- StructureAnalyzer\n- StyleMatcher\n- MaterialPlanner\n\nTechnical approach:\n- Use schematic files for blueprints\n- Implement voxel-based structure analysis\n- Create pattern recognition for styles",
-        "testStrategy": "1. Test blueprint following accuracy\n2. Verify block placement precision\n3. Test style matching capabilities\n4. Measure building efficiency\n5. Validate collaboration with player\n6. Test repair functionality",
-        "priority": "low",
-        "dependencies": [
-          3,
-          10
-        ],
-        "status": "pending",
-        "subtasks": []
-      },
-      {
-        "id": 14,
-        "title": "Implement Performance Optimization and Monitoring",
-        "description": "Develop systems to monitor and optimize plugin performance, ensuring minimal impact on server resources.",
-        "details": "Create performance optimization system:\n- Implement PerformanceMonitor class\n- Add metrics collection (CPU, memory, tick impact)\n- Create adaptive behavior based on server load\n- Implement task scheduling optimization\n- Add caching systems for expensive operations\n- Create config options for performance tuning\n- Implement debug logging for performance issues\n- Add performance reporting commands\n\nKey components:\n- MetricsCollector\n- AdaptiveTaskScheduler\n- CacheManager\n- PerformanceReporter\n\nTechnical approach:\n- Use Bukkit's built-in profiling tools\n- Implement async processing where possible\n- Create throttling mechanisms for intensive operations",
-        "testStrategy": "1. Test under various server loads\n2. Verify adaptive behavior\n3. Test cache effectiveness\n4. Measure tick impact\n5. Validate memory usage\n6. Test with multiple players and companions",
+        "title": "System Integration, Optimization and Testing",
+        "description": "Integrate all components, optimize performance, conduct comprehensive testing, and prepare for deployment.",
+        "details": "1. Perform full system integration:\n   - Connect all components in development environment\n   - Implement end-to-end workflows\n   - Create system startup and shutdown procedures\n   - Add system health monitoring\n\n2. Optimize performance:\n   - Conduct profiling to identify bottlenecks\n   - Implement caching strategies for frequent operations\n   - Optimize network communication\n   - Reduce memory usage and garbage collection\n   - Implement thread pooling and async processing\n\n3. Develop comprehensive testing suite:\n   - Create automated unit and integration tests\n   - Implement performance benchmarks\n   - Add stress testing scenarios\n   - Create user acceptance testing plan\n\n4. Implement error handling and recovery:\n   - Add comprehensive logging system\n   - Create error detection and reporting\n   - Implement automatic recovery procedures\n   - Add diagnostic tools for troubleshooting\n\n5. Prepare deployment package:\n   - Create installation documentation\n   - Implement version checking and updates\n   - Add configuration validation\n   - Create backup and restore procedures\n\n6. Conduct security review:\n   - Audit API key handling\n   - Review data storage security\n   - Check for potential exploits\n   - Implement security best practices\n\nUse modern profiling tools like VisualVM or YourKit for Java and clinic.js for Node.js to identify performance bottlenecks.",
+        "testStrategy": "1. Conduct end-to-end testing of all features\n2. Perform load testing with multiple players and bots\n3. Measure performance metrics against success criteria\n4. Test installation on fresh server environments\n5. Conduct user acceptance testing with real players\n6. Verify error recovery in various failure scenarios\n7. Test compatibility with different server configurations",
         "priority": "high",
         "dependencies": [
           1,
+          2,
           3,
           4,
+          5,
           6,
-          7
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-07-10T14:03:01.839Z",
+      "updated": "2025-07-10T14:04:51.962Z",
+      "description": "Tasks for hybrid-architecture context"
+    }
+  },
+  "hybrid-architecture": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup Basic Project Structure",
+        "description": "Initialize both Java Plugin and Node.js Mineflayer projects with proper directory structure, dependencies, and build configurations.",
+        "details": "For Java Plugin:\n1. Create a Maven/Gradle project with Java 17+\n2. Add Spigot/Paper 1.20.4+ API dependency\n3. Setup plugin.yml with proper metadata\n4. Add dependencies: Gson 2.10.1+, Java-WebSocket 1.5.3+\n5. Create basic package structure (com.minecraft.aicompanion)\n\nFor Mineflayer Bot:\n1. Initialize Node.js project (npm init) with Node.js 18+\n2. Install dependencies: mineflayer 4.8.1+, ws 8.13.0+ (WebSocket), mineflayer-pathfinder 2.4.2+\n3. Create basic directory structure (src/, config/, etc.)\n4. Setup TypeScript (optional but recommended) with tsconfig.json\n5. Create basic .env file template for configuration\n\nCreate shared configuration files for development environment setup and documentation.",
+        "testStrategy": "1. Verify project builds successfully without errors\n2. Confirm all dependencies resolve correctly\n3. Test basic plugin loading in a test Minecraft server\n4. Verify Mineflayer bot can connect to a test server\n5. Document setup process for development team",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 2,
+        "title": "Implement WebSocket Communication System",
+        "description": "Develop a bidirectional WebSocket communication system between the Java Plugin and Mineflayer Bot with a standardized message protocol.",
+        "details": "1. Create WebSocket server in Java Plugin using Java-WebSocket library:\n   - Implement WebSocketServer class with onOpen, onClose, onMessage, and onError handlers\n   - Add connection management for multiple bots\n   - Implement heartbeat mechanism for connection monitoring\n\n2. Create WebSocket client in Mineflayer Bot using ws library:\n   - Implement connection with automatic reconnection logic\n   - Add event handlers for messages, connection, and errors\n\n3. Design and implement JSON message protocol as specified in PRD:\n   ```json\n   {\n     \"type\": \"command|response|event\",\n     \"id\": \"unique_message_id\",\n     \"timestamp\": \"ISO_8601_timestamp\",\n     \"data\": {\n       \"action\": \"move|attack|build|speak|...\",\n       \"parameters\": {...},\n       \"result\": {...}\n     }\n   }\n   ```\n\n4. Implement message serialization/deserialization using Gson (Java) and JSON.parse/stringify (Node.js)\n5. Add message queue system to handle communication delays\n6. Implement error handling and logging for communication issues",
+        "testStrategy": "1. Unit tests for message serialization/deserialization\n2. Integration tests for WebSocket connection establishment\n3. Test reconnection logic by forcibly disconnecting\n4. Stress test with high message volume\n5. Test error handling with malformed messages\n6. Measure and optimize latency between components",
+        "priority": "high",
+        "dependencies": [
+          1
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 15,
-        "title": "Create User Configuration and Command System",
-        "description": "Develop a comprehensive configuration system and in-game commands for controlling the AI companion.",
-        "details": "Implement configuration and command system:\n- Create ConfigManager class for settings handling\n- Implement command framework with TabCompleter\n- Add permission system for commands\n- Create GUI for settings (using inventory interface)\n- Implement companion customization commands\n- Add behavior control commands\n- Create voice settings commands\n- Implement help and documentation\n- Add tutorial system for new users\n\nKey commands:\n- /companion spawn - Create new companion\n- /companion settings - Open settings GUI\n- /companion behavior <type> - Change behavior mode\n- /companion voice <settings> - Adjust voice settings\n- /companion follow/stay - Basic movement commands\n\nTechnical approach:\n- Use command framework with annotations\n- Implement inventory GUI system\n- Create YAML configuration with comments",
-        "testStrategy": "1. Test all commands functionality\n2. Verify permission system\n3. Test settings persistence\n4. Measure command response time\n5. Validate GUI usability\n6. Test with various permission plugins",
-        "priority": "medium",
+        "id": 3,
+        "title": "Develop Basic Mineflayer Bot Functionality",
+        "description": "Implement core Mineflayer bot functionality including connection to Minecraft server, basic movement, and world interaction capabilities.",
+        "details": "1. Create main bot class with connection management:\n   - Implement server connection with configurable credentials\n   - Add event listeners for game events (spawn, death, kicked, etc.)\n   - Implement reconnection logic\n\n2. Implement basic movement system using mineflayer-pathfinder:\n   - Create movement API (moveToPlayer, moveToLocation, followPlayer)\n   - Implement pathfinding with obstacle avoidance\n   - Add movement queue for sequential movements\n\n3. Implement basic world interaction:\n   - Block placement and breaking\n   - Item collection and inventory management\n   - Basic crafting functionality\n\n4. Create state management system:\n   - Track bot position, health, inventory\n   - Monitor nearby entities and blocks\n   - Create event system for state changes\n\n5. Implement command handler to process commands from Java Plugin:\n   - Parse incoming WebSocket messages\n   - Route to appropriate handler functions\n   - Return results/status\n\nUse latest mineflayer-pathfinder features for improved navigation and the new physics engine for more accurate movement.",
+        "testStrategy": "1. Test connection to various server versions (1.20.4+)\n2. Verify movement accuracy and pathfinding in different terrains\n3. Test block interaction in various scenarios\n4. Measure performance under different server loads\n5. Verify command handling with mock WebSocket messages\n6. Test reconnection under various disconnection scenarios",
+        "priority": "high",
         "dependencies": [
           1,
-          2,
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 4,
+        "title": "Implement Java Plugin Core and Command System",
+        "description": "Develop the core Java Plugin structure with Minecraft server integration, command system, and event handling.",
+        "details": "1. Create main plugin class extending JavaPlugin:\n   - Implement onEnable and onDisable methods\n   - Setup configuration loading/saving\n   - Initialize WebSocket server\n\n2. Implement command system:\n   - Create base command framework with subcommand support\n   - Implement permission checking\n   - Add commands: /aicompanion spawn, /aicompanion remove, /aicompanion config\n   - Implement tab completion for commands\n\n3. Create event listeners:\n   - Listen for player join/quit events\n   - Monitor player chat for AI interaction\n   - Track player movement for bot following\n\n4. Implement configuration system:\n   - Create config.yml with default values\n   - Add runtime configuration updates\n   - Implement per-player settings\n\n5. Add plugin metrics and logging:\n   - Implement detailed logging system\n   - Add performance monitoring\n   - Setup error reporting\n\nUse the latest Paper API features for improved performance and the Adventure API for modern text components.",
+        "testStrategy": "1. Test plugin loading on different server versions\n2. Verify command execution and permission handling\n3. Test configuration loading/saving\n4. Verify event listeners with mock events\n5. Test plugin metrics for accuracy\n6. Perform load testing to ensure server performance isn't impacted",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Implement Speech-to-Text (STT) System",
+        "description": "Integrate Google Cloud Speech-to-Text API for real-time voice recognition with Korean language support and background noise filtering.",
+        "details": "1. Setup Google Cloud Speech-to-Text client in Java Plugin:\n   - Add Google Cloud Speech libraries (com.google.cloud:google-cloud-speech:4.19.0)\n   - Implement authentication with service account\n   - Configure Korean language model (ko-KR)\n\n2. Create audio capture system:\n   - Implement client-side mod or web interface for audio capture\n   - Add WebSocket audio streaming to plugin\n   - Implement audio preprocessing (noise reduction, normalization)\n\n3. Develop real-time transcription pipeline:\n   - Configure streaming recognition requests\n   - Implement interim results handling\n   - Add confidence threshold filtering\n\n4. Create context-aware recognition:\n   - Add Minecraft-specific vocabulary (blocks, items, commands)\n   - Implement player name recognition\n   - Create custom speech adaptation for game terms\n\n5. Implement fallback mechanisms:\n   - Add offline fallback for API outages\n   - Implement text input alternative\n   - Create error recovery for failed transcriptions\n\nUse the latest Google Cloud Speech-to-Text features including Adaptive Noise Suppression and Enhanced Models for improved accuracy in gaming environments.",
+        "testStrategy": "1. Test transcription accuracy with various Korean accents\n2. Measure latency under different network conditions\n3. Test noise filtering in different environments\n4. Verify Minecraft-specific term recognition\n5. Test fallback mechanisms by simulating API failures\n6. Conduct user testing with different microphones and setups",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Implement Text-to-Speech (TTS) System",
+        "description": "Integrate Google Cloud Text-to-Speech API for natural Korean voice synthesis with emotion expression capabilities.",
+        "details": "1. Setup Google Cloud Text-to-Speech client in Java Plugin:\n   - Add Google Cloud TTS libraries (com.google.cloud:google-cloud-texttospeech:2.32.0)\n   - Implement authentication with service account\n   - Configure high-quality Korean voice models\n\n2. Create voice synthesis system:\n   - Implement SSML (Speech Synthesis Markup Language) generation\n   - Add emotion markers for different speech styles\n   - Create voice parameter customization (pitch, speed, etc.)\n\n3. Develop audio playback system:\n   - Implement client-side mod for audio playback\n   - Add audio streaming via WebSocket\n   - Create audio caching for common phrases\n\n4. Implement emotion-based voice modulation:\n   - Map AI emotional states to voice parameters\n   - Create different speaking styles (happy, sad, excited, etc.)\n   - Add emphasis for important words\n\n5. Optimize for performance:\n   - Implement response caching\n   - Add concurrent synthesis for multiple bots\n   - Create fallback to text for performance issues\n\nUse the latest WaveNet and Neural2 voices for Korean which provide more natural intonation and emotional expression.",
+        "testStrategy": "1. Test voice naturalness with native Korean speakers\n2. Measure synthesis and playback latency\n3. Verify emotion expression accuracy\n4. Test concurrent synthesis performance\n5. Verify audio quality across different client setups\n6. Test caching system effectiveness",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Integrate OpenAI GPT API for Conversation",
+        "description": "Implement natural language processing using OpenAI's GPT API with context management, Korean language optimization, and character personality system.",
+        "details": "1. Setup OpenAI API integration:\n   - Add OpenAI client library (com.theokanning.openai-gpt3-java:service:0.16.0)\n   - Implement API key management and rate limiting\n   - Configure model selection (GPT-4 recommended, fallback to 3.5-turbo)\n\n2. Design conversation system:\n   - Implement conversation history management\n   - Create context window optimization\n   - Add token counting and management\n\n3. Develop character personality framework:\n   - Create personality templates with traits and behaviors\n   - Implement emotion system with state transitions\n   - Add memory system for player interactions\n\n4. Optimize for Korean language:\n   - Create Korean-specific prompt engineering\n   - Implement Korean cultural context awareness\n   - Add Korean linguistic nuance handling\n\n5. Implement game context awareness:\n   - Add game state information to prompts\n   - Create situation-aware responses\n   - Implement action suggestion based on context\n\n6. Add conversation management:\n   - Implement conversation threading\n   - Create topic tracking\n   - Add conversation summarization for long interactions\n\nUse the latest OpenAI API features including function calling for structured outputs and the new context window sizes for better conversation memory.",
+        "testStrategy": "1. Evaluate conversation naturalness with Korean speakers\n2. Test personality consistency across sessions\n3. Measure response relevance to game context\n4. Test emotion system transitions\n5. Verify memory retention of player preferences\n6. Measure API usage and optimize for cost efficiency\n7. Test fallback mechanisms during API outages",
+        "priority": "high",
+        "dependencies": [
+          4,
+          5,
+          6
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Develop Advanced Mineflayer Bot Capabilities",
+        "description": "Implement advanced bot capabilities including combat, building, resource gathering, and autonomous behavior systems.",
+        "details": "1. Implement combat system using mineflayer-pvp (^1.3.2):\n   - Add target selection logic\n   - Implement weapon selection based on situation\n   - Create combat strategies (melee, ranged, defensive)\n   - Add player protection mode\n\n2. Develop building system with mineflayer-builder (^1.4.0):\n   - Implement schematic loading and parsing\n   - Create block selection and placement optimization\n   - Add progress tracking and reporting\n   - Implement error recovery for failed placements\n\n3. Create resource gathering system:\n   - Implement resource identification and prioritization\n   - Add efficient mining patterns\n   - Create inventory management and organization\n   - Implement tool selection and durability management\n\n4. Develop autonomous behavior system:\n   - Create behavior tree for decision making\n   - Implement goal-based planning\n   - Add idle behaviors and exploration\n   - Create safety mechanisms (lava avoidance, fall prevention)\n\n5. Implement advanced pathfinding with mineflayer-pathfinder:\n   - Add dynamic obstacle avoidance\n   - Implement efficient path recalculation\n   - Create specialized movement (swimming, climbing, etc.)\n   - Add group movement coordination\n\nUse the latest prismarine-physics for accurate movement and the new pathfinder features for improved navigation in complex environments.",
+        "testStrategy": "1. Test combat effectiveness against various mob types\n2. Verify building accuracy with complex structures\n3. Measure resource gathering efficiency\n4. Test autonomous behavior in various environments\n5. Verify pathfinding in challenging terrains\n6. Test performance under server load\n7. Conduct stress tests with multiple bots",
+        "priority": "medium",
+        "dependencies": [
           3
         ],
         "status": "pending",
         "subtasks": []
       },
       {
-        "id": 16,
-        "title": "Fix ProtocolLib Dependency Error and Implement Safe Fallback",
-        "description": "Resolve NoClassDefFoundError for ProtocolLib and implement graceful degradation when the dependency is missing to prevent plugin crashes.",
-        "details": "Implement robust dependency handling for ProtocolLib:\n\n1. Enhance dependency verification:\n   - Create a `DependencyManager` class to check for ProtocolLib at startup\n   - Use `Bukkit.getPluginManager().getPlugin(\"ProtocolLib\")` to verify plugin presence\n   - Add version compatibility check for ProtocolLib\n\n2. Implement graceful degradation:\n   - Modify `FakePlayer` class to handle missing ProtocolLib\n   - Create interface `EntityVisualizer` with two implementations:\n     - `ProtocolLibVisualizer`: Uses ProtocolLib for advanced entity manipulation\n     - `FallbackVisualizer`: Uses basic Bukkit API for simple villager NPCs\n   - Implement factory pattern to select appropriate visualizer based on availability\n\n3. Add clear user notifications:\n   - Display console warnings when ProtocolLib is missing\n   - Send admin notification on join if they have appropriate permissions\n   - Add detailed installation instructions in console logs\n   - Create config option to suppress warnings\n\n4. Code example for dependency check:\n```java\npublic class DependencyManager {\n    private final JavaPlugin plugin;\n    private boolean protocolLibAvailable = false;\n    \n    public DependencyManager(JavaPlugin plugin) {\n        this.plugin = plugin;\n        checkDependencies();\n    }\n    \n    private void checkDependencies() {\n        Plugin protocolLib = Bukkit.getPluginManager().getPlugin(\"ProtocolLib\");\n        if (protocolLib != null && protocolLib.isEnabled()) {\n            protocolLibAvailable = true;\n            plugin.getLogger().info(\"ProtocolLib found: \" + protocolLib.getDescription().getVersion());\n        } else {\n            plugin.getLogger().warning(\"ProtocolLib not found or not enabled!\");\n            plugin.getLogger().warning(\"Advanced entity features will be disabled.\");\n            plugin.getLogger().warning(\"Install ProtocolLib: https://www.spigotmc.org/resources/protocollib.1997/\");\n        }\n    }\n    \n    public boolean isProtocolLibAvailable() {\n        return protocolLibAvailable;\n    }\n}\n```\n\n5. Implement safe error handling in command execution:\n   - Modify `/ai-spawn` command to check dependency status before execution\n   - Add fallback message explaining limited functionality\n   - Create alternative command implementation that works without ProtocolLib\n\n6. Update plugin.yml:\n   - Change ProtocolLib from 'depend' to 'softdepend'\n   - Add clear description of enhanced features with ProtocolLib",
-        "testStrategy": "1. Test plugin startup with and without ProtocolLib installed:\n   - Verify plugin loads successfully without ProtocolLib\n   - Confirm appropriate warning messages in console\n   - Check that admin notifications work correctly\n\n2. Test the `/ai-spawn` command in both scenarios:\n   - With ProtocolLib: Verify full functionality works\n   - Without ProtocolLib: Confirm fallback villager NPC appears\n   - Test error handling with various command parameters\n\n3. Verify graceful degradation:\n   - Test all plugin features with ProtocolLib disabled\n   - Confirm limited functionality works as expected\n   - Verify no exceptions are thrown during normal operation\n\n4. Test runtime dependency changes:\n   - Start server without ProtocolLib, then install and reload\n   - Start with ProtocolLib, then disable it and test fallback\n   - Verify plugin adapts correctly to dependency changes\n\n5. Performance testing:\n   - Measure any performance differences between full and fallback modes\n   - Test with multiple AI entities to ensure stability\n\n6. Compatibility testing:\n   - Test with different versions of ProtocolLib\n   - Verify behavior with outdated ProtocolLib versions",
-        "status": "done",
+        "id": 9,
+        "title": "Implement Skin and Model Customization System",
+        "description": "Develop a system for real-time skin changes, custom model support, and emotion-based appearance modifications.",
+        "details": "1. Implement skin management system in Java Plugin:\n   - Create skin loading from files and URLs\n   - Add skin caching and preloading\n   - Implement skin rotation for variety\n   - Create player-specific skin preferences\n\n2. Develop custom model support:\n   - Research and implement Yes Steve Model integration\n   - Add custom model data packet handling\n   - Create model verification and validation\n   - Implement fallback for unsupported clients\n\n3. Create emotion-based appearance system:\n   - Map emotional states to visual changes\n   - Implement real-time skin switching based on emotions\n   - Add special effects for emotional states (particles, sounds)\n   - Create smooth transitions between states\n\n4. Implement client-side rendering optimizations:\n   - Add client detection for feature support\n   - Implement progressive loading for complex models\n   - Create LOD (Level of Detail) system for distance\n\n5. Develop appearance customization commands:\n   - Add commands for manual skin/model changes\n   - Create preset management\n   - Implement randomization options\n\nUse ProtocolLib (5.0.0+) for packet manipulation and the latest resource pack features for custom models.",
+        "testStrategy": "1. Test skin loading from various sources\n2. Verify custom model rendering on different clients\n3. Test emotion-based appearance changes\n4. Measure performance impact of model complexity\n5. Verify compatibility with various client versions\n6. Test appearance persistence across server restarts",
+        "priority": "low",
         "dependencies": [
-          1,
-          2
+          4
         ],
-        "priority": "high",
-        "subtasks": [
-          {
-            "id": 1,
-            "title": "Create DependencyManager Class",
-            "description": "Implement a robust DependencyManager class to handle ProtocolLib dependency verification at startup.",
-            "dependencies": [],
-            "details": "Create a DependencyManager class that checks for ProtocolLib presence using Bukkit.getPluginManager().getPlugin(\"ProtocolLib\"). Include version compatibility checking and proper logging. The class should provide a clean API for other components to query dependency status.\n<info added on 2025-07-10T06:47:50.523Z>\nDependencyManager 클래스 생성이 완료되었습니다.\n\n구현된 기능:\n- ProtocolLib 설치 상태 자동 감지\n- 버전 정보 확인 및 로깅\n- 한국어 상태 메시지 및 설치 안내\n- 명령어용 상태 정보 제공 메서드\n- 설치 가이드 메서드\n\n주요 메서드:\n- isProtocolLibAvailable(): 사용 가능 여부 확인\n- getDependencyStatus(): 상태 정보 문자열 반환\n- getInstallationInstructions(): 설치 안내 반환\n\n로깅 기능:\n- 성공 시: 녹색 메시지로 버전 정보 표시\n- 실패 시: 경고 메시지 + 다운로드 링크 제공\n</info added on 2025-07-10T06:47:50.523Z>",
-            "status": "done",
-            "testStrategy": "Unit test the DependencyManager with mocked Plugin instances to verify correct detection of ProtocolLib in various states (present, missing, disabled)."
-          },
-          {
-            "id": 2,
-            "title": "Implement EntityVisualizer Interface and Implementations",
-            "description": "Create an abstraction layer for entity visualization with implementations for both ProtocolLib and fallback scenarios.",
-            "dependencies": [
-              1
-            ],
-            "details": "Design an EntityVisualizer interface with methods for entity creation and manipulation. Implement two concrete classes: ProtocolLibVisualizer (using ProtocolLib features) and FallbackVisualizer (using basic Bukkit API). Use factory pattern to instantiate the appropriate implementation based on dependency availability.",
-            "status": "done",
-            "testStrategy": "Create integration tests that verify both visualizers produce expected results in their respective environments."
-          },
-          {
-            "id": 3,
-            "title": "Modify FakePlayer Class for Graceful Degradation",
-            "description": "Update the FakePlayer class to work with the new EntityVisualizer abstraction and handle missing dependencies gracefully.",
-            "dependencies": [
-              2
-            ],
-            "details": "Refactor the FakePlayer class to use the EntityVisualizer interface instead of direct ProtocolLib calls. Implement try-catch blocks for any remaining direct ProtocolLib usage. Ensure all functionality degrades gracefully when ProtocolLib is unavailable, falling back to simpler NPC implementations.",
-            "status": "done",
-            "testStrategy": "Test FakePlayer functionality in both environments (with and without ProtocolLib) to ensure it works correctly in both scenarios."
-          },
-          {
-            "id": 4,
-            "title": "Implement User Notifications System",
-            "description": "Create a comprehensive notification system for administrators about dependency status.",
-            "dependencies": [
-              1
-            ],
-            "details": "Implement console warnings when ProtocolLib is missing. Add admin notifications on join for players with appropriate permissions. Include detailed installation instructions in logs. Create configuration options to control notification behavior and frequency. Ensure messages clearly explain the impact on functionality.",
-            "status": "done",
-            "testStrategy": "Verify notifications appear correctly in console and to admins under various configuration settings and dependency states."
-          },
-          {
-            "id": 5,
-            "title": "Update Plugin Configuration and Commands",
-            "description": "Modify plugin.yml and command implementations to support the new dependency handling approach.",
-            "dependencies": [
-              1,
-              2,
-              3,
-              4
-            ],
-            "details": "Change ProtocolLib from 'depend' to 'softdepend' in plugin.yml. Update command implementations to check dependency status before execution and provide appropriate feedback. Implement alternative command flows for when ProtocolLib is unavailable. Add configuration options for controlling fallback behavior.",
-            "status": "done",
-            "testStrategy": "Test command execution in both environments to ensure appropriate behavior and messaging in each scenario."
-          }
-        ]
+        "status": "pending",
+        "subtasks": []
       },
       {
-        "id": 17,
-        "title": "Fix Minecraft 1.21.7 Compatibility Issues in FakePlayer Implementation",
-        "description": "Resolve critical errors in the FakePlayer class caused by Minecraft 1.21.7 internal changes to packet systems and entity data structures, preventing player disconnections.",
-        "details": "Implement comprehensive compatibility fixes for Minecraft 1.21.7:\n\n1. Update ProtocolLib dependency:\n   - Verify and update to the latest ProtocolLib version compatible with 1.21.7\n   - Modify dependency declaration in plugin.yml and pom.xml/build.gradle\n   - Update DependencyManager to check for the correct ProtocolLib version\n\n2. Refactor FakePlayer class to accommodate new packet structure:\n   - Fix `FieldAccessException: Field index 0 is out of bounds for length 0` by updating field access methods\n   - Replace deprecated NAMED_ENTITY_SPAWN packet references with SPAWN_ENTITY\n   - Create adapter pattern to handle packet type differences between versions\n   - Implement version detection to apply appropriate packet handling\n\n3. Update entity data handling:\n   - Refactor code using SynchedEntityData to match new class structure\n   - Replace DataItem casting with appropriate DataValue implementation\n   - Create abstraction layer for entity metadata to handle version differences\n   - Implement proper type checking before casting operations\n\n4. Implement robust error handling:\n   - Add try-catch blocks around critical packet operations\n   - Create detailed logging for packet-related errors\n   - Implement graceful degradation when packet operations fail\n   - Add telemetry to track compatibility issues in production\n\n5. Create version-specific implementations:\n   - Develop VersionHandler interface with specific implementations for 1.21.7\n   - Implement factory pattern to create appropriate handlers based on server version\n   - Isolate version-specific code to improve maintainability\n   - Document API changes between versions for future reference\n\n6. Test compatibility across multiple environments:\n   - Set up test servers with different Minecraft versions\n   - Create automated tests for packet handling\n   - Implement stress tests to verify stability under load\n   - Document all compatibility issues and solutions",
-        "testStrategy": "1. Set up a test environment with Minecraft 1.21.7 server:\n   - Install latest compatible ProtocolLib\n   - Configure server with identical settings to production\n   - Create test scenarios that previously triggered errors\n\n2. Verify packet handling fixes:\n   - Test spawning multiple fake players simultaneously\n   - Validate entity metadata is correctly synchronized\n   - Confirm no FieldAccessException occurs during entity spawning\n   - Verify SPAWN_ENTITY packets are correctly processed\n\n3. Test entity data structure compatibility:\n   - Monitor for ClassCastException during entity data updates\n   - Verify entity appearance updates correctly\n   - Test all entity metadata modifications (equipment, poses, etc.)\n   - Confirm entity visibility to all players in different scenarios\n\n4. Perform stress testing:\n   - Spawn maximum allowed fake players simultaneously\n   - Test rapid creation and destruction of entities\n   - Verify performance under high player count\n   - Monitor for memory leaks or performance degradation\n\n5. Regression testing:\n   - Verify compatibility with previous Minecraft versions\n   - Test all plugin commands and features\n   - Confirm integration with other plugins still works\n   - Validate that no new errors are introduced\n\n6. User acceptance testing:\n   - Deploy to test server with real players\n   - Monitor for disconnections or client crashes\n   - Collect feedback on entity visual appearance\n   - Verify smooth operation during extended gameplay sessions",
-        "status": "done",
+        "id": 10,
+        "title": "Develop Player Interaction and Learning System",
+        "description": "Create a system for monitoring player behavior, learning preferences, and adapting AI responses based on interaction history.",
+        "details": "1. Implement player tracking system:\n   - Create player activity monitoring\n   - Add location and movement tracking\n   - Implement interaction history recording\n   - Create privacy controls and data management\n\n2. Develop preference learning system:\n   - Implement basic machine learning for preference detection\n   - Create feature extraction from player behavior\n   - Add feedback mechanism for response quality\n   - Implement progressive adaptation\n\n3. Create relationship modeling:\n   - Implement relationship scores and categories\n   - Add relationship evolution based on interactions\n   - Create relationship-specific responses\n   - Implement relationship maintenance behaviors\n\n4. Develop contextual memory system:\n   - Create persistent memory storage\n   - Implement memory retrieval based on context\n   - Add memory consolidation for long-term storage\n   - Create memory importance ranking\n\n5. Implement adaptive behavior system:\n   - Create behavior modification based on player feedback\n   - Implement style matching to player communication\n   - Add interest modeling for conversation topics\n   - Create adaptive assistance levels\n\nUse modern Java persistence frameworks like Hibernate ORM (6.2.0+) for efficient data storage and retrieval.",
+        "testStrategy": "1. Test preference detection accuracy\n2. Verify adaptation over time with simulated interactions\n3. Test memory persistence and retrieval\n4. Measure relationship model accuracy\n5. Verify privacy controls and data security\n6. Test system with multiple players simultaneously\n7. Conduct longitudinal testing for learning effectiveness",
+        "priority": "medium",
         "dependencies": [
-          16,
-          2,
           7
         ],
-        "priority": "high",
-        "subtasks": [
-          {
-            "id": 1,
-            "title": "Update ProtocolLib Dependency",
-            "description": "Verify and update to the latest ProtocolLib version compatible with Minecraft 1.21.7, updating all necessary configuration files.",
-            "dependencies": [],
-            "details": "Research the latest ProtocolLib version that supports Minecraft 1.21.7. Update the dependency declaration in plugin.yml and build configuration files (pom.xml or build.gradle). Modify the DependencyManager class to verify the correct ProtocolLib version at runtime. Test that the plugin loads correctly with the updated dependency.",
-            "status": "done",
-            "testStrategy": "Verify plugin loads without errors on Minecraft 1.21.7 server with updated ProtocolLib. Check logs for any dependency-related warnings or errors."
-          },
-          {
-            "id": 2,
-            "title": "Refactor Packet Structure Handling",
-            "description": "Update the FakePlayer class to work with Minecraft 1.21.7's new packet structure, fixing field access exceptions and deprecated packet references.",
-            "dependencies": [
-              1
-            ],
-            "details": "Analyze the new packet structure in 1.21.7. Replace deprecated NAMED_ENTITY_SPAWN packet references with SPAWN_ENTITY. Implement an adapter pattern to handle differences between versions. Fix the 'FieldAccessException: Field index 0 is out of bounds for length 0' by updating field access methods to match the new structure.\n<info added on 2025-07-10T07:35:10.501Z>\nMinecraft 1.21.7 compatibility fixes completed:\n\n✅ **Key Modifications:**\n1. **Prioritized SPAWN_ENTITY packet**: Replaced NAMED_ENTITY_SPAWN with SPAWN_ENTITY packet for 1.21.7 compatibility\n2. **Safe entity metadata handling**: Implemented setEntityMetadata helper method for secure metadata configuration\n3. **Player info packet improvements**: Enhanced packet processing for 1.21.7 compatibility\n4. **Comprehensive error handling**: Added error logging and safe fallback handling for all packet transmissions\n\n✅ **Modified Methods:**\n- sendSpawnPacket(): Now prioritizes SPAWN_ENTITY packet\n- sendEntityMetadataPacket(): Implements secure metadata setting\n- sendPlayerInfoPacket(): Features improved compatibility handling\n- New setEntityMetadata(): Helper method for safe metadata operations\n\n✅ **Build Successful**: \n- File location: target/minecraft-ai-companion-1.0.0-SNAPSHOT.jar\n- All dependencies included\n- No compilation errors\n\nReady for testing!\n</info added on 2025-07-10T07:35:10.501Z>",
-            "status": "done",
-            "testStrategy": "Create unit tests for packet creation and sending. Manually test by spawning fake players and verifying they appear correctly for real players."
-          },
-          {
-            "id": 3,
-            "title": "Update Entity Data Handling",
-            "description": "Refactor code using SynchedEntityData to match Minecraft 1.21.7's new class structure and implement proper type handling.",
-            "dependencies": [
-              2
-            ],
-            "details": "Analyze changes to SynchedEntityData in 1.21.7. Replace DataItem casting with appropriate DataValue implementation. Create an abstraction layer for entity metadata to handle version differences. Implement proper type checking before casting operations to prevent ClassCastExceptions.\n<info added on 2025-07-10T07:51:05.653Z>\nPacket compatibility issues resolved:\n\n1. Disabled PlayerInfo packet: Replaced tab list display with chat message notifications\n2. Disabled EntityMetadata packet: Using default display without custom metadata\n3. Disabled Equipment packet: Showing only base entity without equipment display\n4. Changed entity type from Player(106) to Villager(18) for improved stability\n\nFixed errors:\n- Resolved FieldAccessException: \"Field index 0 is out of bounds\"\n- Fixed ClassCastException: \"DataItem cannot be cast to DataValue\"\n- Eliminated player disconnection issues\n\nBuild output:\n- File: target/minecraft-ai-companion-1.0.0-SNAPSHOT.jar (approximately 63MB)\n- All dependencies included\n- No compilation errors\n\nExpected behavior:\n- AI companion spawns without errors\n- Chat notifications display when companion is created\n- Player connection remains stable\n- Basic functionality (following, movement) works normally\n</info added on 2025-07-10T07:51:05.653Z>",
-            "status": "done",
-            "testStrategy": "Create unit tests for entity data manipulation. Test different entity metadata types to ensure proper handling across versions."
-          },
-          {
-            "id": 4,
-            "title": "Implement Version-Specific Handlers",
-            "description": "Create a version detection system with specific implementations for Minecraft 1.21.7 packet handling.",
-            "dependencies": [
-              3
-            ],
-            "details": "Develop a VersionHandler interface with specific implementations for 1.21.7. Implement a factory pattern to create appropriate handlers based on server version. Isolate version-specific code to improve maintainability. Document API changes between versions for future reference.",
-            "status": "done",
-            "testStrategy": "Test the version detection mechanism with different server versions. Verify that the correct handler is selected for each version."
-          },
-          {
-            "id": 5,
-            "title": "Implement Robust Error Handling and Testing",
-            "description": "Add comprehensive error handling around packet operations and conduct thorough compatibility testing across multiple environments.",
-            "dependencies": [
-              4
-            ],
-            "details": "Add try-catch blocks around critical packet operations. Create detailed logging for packet-related errors. Implement graceful degradation when packet operations fail. Set up test servers with different Minecraft versions (1.20.x through 1.21.7). Create automated tests for packet handling and implement stress tests to verify stability under load.",
-            "status": "done",
-            "testStrategy": "Run the plugin on multiple server versions simultaneously. Test edge cases like player teleportation, world changes, and high-load scenarios with many players."
-          }
-        ]
+        "status": "pending",
+        "subtasks": []
       },
       {
-        "id": 18,
-        "title": "Implement Villager-based AI Companion System",
-        "description": "Replace the ProtocolLib-dependent FakePlayer system with a stable Villager NPC-based AI companion system that works reliably in Minecraft 1.21.6+ without compatibility issues.",
-        "details": "Implement a robust Villager-based AI companion system to replace the problematic FakePlayer implementation:\n\n1. Create a new `VillagerCompanion` class:\n   - Extend from `EntityVillager` or use Bukkit API to create and manage villager entities\n   - Implement custom AI behaviors to follow players, respond to commands, and perform actions\n   - Add metadata to identify these villagers as AI companions\n   - Implement custom name tags and basic visual customization within Bukkit API limitations\n\n2. Modify the existing companion architecture:\n   - Create a common interface `AICompanion` that both `FakePlayerCompanion` and `VillagerCompanion` implement\n   - Update `AICompanionManager` to support both companion types based on configuration\n   - Add a configuration option `fake_player_mode: false` to switch between systems\n   - Implement a factory pattern for creating the appropriate companion type\n\n3. Implement core functionality for VillagerCompanion:\n   - Following behavior (pathfinding to stay near player)\n   - Command processing system\n   - Persistence (saving/loading companion data)\n   - Basic interaction capabilities\n   - Combat support functionality\n   - Inventory management (if applicable)\n\n4. Create migration system:\n   - Add functionality to convert existing FakePlayer companions to Villager companions\n   - Preserve companion names, inventories, and other relevant data during conversion\n   - Provide commands to manually trigger migration\n\n5. Ensure backward compatibility:\n   - Design the system to allow easy switching between implementations\n   - Structure code to facilitate future upgrades when ProtocolLib compatibility improves\n   - Document the limitations of the Villager-based system compared to FakePlayer\n\n6. Update user interface:\n   - Modify command feedback to reflect the current companion type\n   - Update help documentation to explain the different modes\n   - Add visual indicators to distinguish AI companions from regular villagers",
-        "testStrategy": "1. Test basic Villager companion functionality:\n   - Verify spawning works correctly in Minecraft 1.21.6+\n   - Confirm companions are visible to all players\n   - Test following behavior at various distances and through different terrain\n   - Verify companions respond to all commands correctly\n\n2. Test persistence and data management:\n   - Create and customize multiple companions\n   - Restart the server and verify all companions load correctly\n   - Test companion data saving during server crashes\n   - Verify companion state is maintained correctly\n\n3. Test configuration switching:\n   - Switch between FakePlayer and Villager modes via config\n   - Verify existing companions are properly migrated\n   - Test performance impact of both implementations\n\n4. Compatibility testing:\n   - Test on multiple Minecraft versions (1.21.6, 1.21.7, etc.)\n   - Verify functionality with and without ProtocolLib installed\n   - Test with various server configurations (Paper, Spigot, etc.)\n   - Check for conflicts with other plugins that modify villagers\n\n5. Performance testing:\n   - Measure server impact with multiple companions active\n   - Test with high player counts to ensure stability\n   - Verify memory usage remains within acceptable limits\n   - Check for any tick rate impacts during companion actions\n\n6. User experience testing:\n   - Gather feedback on the visual appearance and behavior\n   - Test with different permission levels\n   - Verify all commands work as expected with the new implementation",
-        "status": "pending",
-        "dependencies": [
-          16,
-          17,
-          15
-        ],
+        "id": 11,
+        "title": "Implement State Synchronization System",
+        "description": "Develop a robust system for synchronizing state between the Java Plugin and Mineflayer Bot, including position, inventory, and world state.",
+        "details": "1. Design state synchronization protocol:\n   - Define state objects and serialization format\n   - Implement change detection and delta updates\n   - Create priority-based update system\n   - Add timestamp and version tracking\n\n2. Implement bot state tracking in Mineflayer:\n   - Create comprehensive state object (position, inventory, health, etc.)\n   - Add change detection and event emission\n   - Implement state snapshot creation\n   - Create periodic full state synchronization\n\n3. Develop state reception and processing in Java Plugin:\n   - Implement state update handlers\n   - Create state validation and error correction\n   - Add state interpolation for smooth updates\n   - Implement state caching and prediction\n\n4. Create mission and goal synchronization:\n   - Implement mission object model\n   - Add progress tracking and reporting\n   - Create mission decomposition into tasks\n   - Implement priority-based mission scheduling\n\n5. Develop world state synchronization:\n   - Implement chunk data synchronization\n   - Add entity tracking and updates\n   - Create world event propagation\n   - Implement selective world state updates\n\nUse efficient binary serialization like Protocol Buffers or MessagePack for reduced bandwidth and faster processing.",
+        "testStrategy": "1. Measure synchronization latency under various conditions\n2. Test state consistency between components\n3. Verify recovery from communication interruptions\n4. Test bandwidth usage optimization\n5. Verify mission tracking accuracy\n6. Test with simulated high-latency connections\n7. Measure CPU and memory impact of synchronization",
         "priority": "high",
-        "subtasks": [
-          {
-            "id": 1,
-            "title": "Create VillagerCompanion Class",
-            "description": "Develop a new VillagerCompanion class that extends EntityVillager or uses Bukkit API to create and manage villager entities as AI companions.",
-            "dependencies": [],
-            "details": "Implement the core VillagerCompanion class with: custom AI behaviors for following players, command response capabilities, metadata tagging to identify companions, custom name tags and visual customization within Bukkit API limitations, and basic movement and interaction functionality.\n<info added on 2025-07-10T08:12:40.607Z>\nImplementation of VillagerCompanion class completed:\n\n1. Created VillagerCompanion class - stable Villager NPC-based AI companion system\n2. Implemented AICompanionInterface - provides the same interface as FakePlayerCompanion\n3. Modified AICompanionManager to support both companion types\n4. Updated configuration file with use-villager-mode: true option\n\nKey features:\n- Stable Bukkit API-based Villager entity implementation\n- Custom name tags (including 🤖 emoji)\n- Automatic following and teleportation functionality\n- Basic command handling (come, stay, follow)\n- Particle and sound effects\n- Configuration-based mode selection (Villager vs FakePlayer)\n- Automatic fallback if ProtocolLib fails\n\nCurrent status: All source code completed, build ready, available for immediate testing.\n</info added on 2025-07-10T08:12:40.607Z>\n<info added on 2025-07-10T08:25:49.441Z>\nFixed type mismatch errors in AICompanionCommandExecutor class:\n- Added AICompanionInterface import\n- Changed FakePlayerCompanion to AICompanionInterface in showCompanionInfo() method\n- Changed FakePlayerCompanion to AICompanionInterface in handleTeleportCommand() method\n- Changed List<FakePlayerCompanion> to List<AICompanionInterface> in showCompanionList() method\n- Updated all companion.getData() calls to companion.getCompanionData()\n\nAll compilation errors have been resolved and the build is now successful.\n</info added on 2025-07-10T08:25:49.441Z>\n<info added on 2025-07-10T08:45:20.965Z>\nFixed packet handling in FakePlayer system to use actual packet transmission:\n\n1. Updated ProtocolLib dependency from 5.1.0 to 5.3.0\n2. Removed all packet skipping logic and implemented actual packet transmission:\n   - sendPlayerInfoPacket: Now properly sends tab list add/remove packets\n   - sendEntityMetadataPacket: Now sends entity metadata packets\n   - sendEquipmentPacket: Now sends equipment packets\n   - sendTeleportPacket: Now sends teleport packets\n   - playAnimation: Now sends animation packets\n   - sendHeadRotationPacket: Now sends head rotation packets\n3. Restored entity type from Villager(18) to Player(106)\n\nError handling improvements:\n- Added try-catch blocks for each packet transmission\n- Implemented warning logs for packet failures\n- Ensured partial packet failures don't affect other packet operations\n\nThe FakePlayer companions should now be properly visible to players with all visual elements functioning correctly.\n</info added on 2025-07-10T08:45:20.965Z>",
-            "status": "done",
-            "testStrategy": "Create test cases to verify villager spawning, persistence across server restarts, and basic movement behaviors. Test in Minecraft 1.21.6+ environments to ensure compatibility."
-          },
-          {
-            "id": 2,
-            "title": "Design Common Interface Architecture",
-            "description": "Create a common interface structure that allows both FakePlayer and Villager companions to be managed through the same systems.",
-            "dependencies": [
-              1
-            ],
-            "details": "Develop an AICompanion interface that both companion types implement, update AICompanionManager to support both types based on configuration, add configuration options to switch between systems, and implement a factory pattern for creating the appropriate companion type. Ensure all existing functionality is accessible through the interface.",
-            "status": "pending",
-            "testStrategy": "Test interface implementation with both companion types to verify all methods work correctly. Verify configuration switching properly initializes the correct companion type."
-          },
-          {
-            "id": 3,
-            "title": "Implement Core Villager Companion Functionality",
-            "description": "Build the essential features needed for the Villager-based companions to match critical FakePlayer functionality.",
-            "dependencies": [
-              1,
-              2
-            ],
-            "details": "Implement following behavior with pathfinding to stay near player, command processing system for responding to player instructions, persistence mechanisms for saving/loading companion data, basic interaction capabilities, combat support functionality, and inventory management if applicable within Bukkit API constraints.",
-            "status": "pending",
-            "testStrategy": "Create comprehensive tests for each functionality: following behavior in various terrains, command response accuracy, data persistence across server restarts, and combat assistance capabilities."
-          },
-          {
-            "id": 4,
-            "title": "Create Migration System",
-            "description": "Develop a system to convert existing FakePlayer companions to Villager companions while preserving their data.",
-            "dependencies": [
-              2,
-              3
-            ],
-            "details": "Add functionality to convert existing FakePlayer companions to Villager companions, preserve companion names, inventories, and other relevant data during conversion, provide commands to manually trigger migration, and implement automatic migration when the system detects configuration changes.",
-            "status": "pending",
-            "testStrategy": "Test migration with various companion configurations to ensure all data transfers correctly. Verify both automatic and manual migration processes work as expected."
-          },
-          {
-            "id": 5,
-            "title": "Update User Interface and Documentation",
-            "description": "Modify the plugin's user interface and documentation to reflect the new companion system.",
-            "dependencies": [
-              3,
-              4
-            ],
-            "details": "Update command feedback to reflect the current companion type in use, modify help documentation to explain the different modes and their capabilities/limitations, add visual indicators to distinguish AI companions from regular villagers, and create comprehensive documentation for server administrators about the transition between systems.",
-            "status": "pending",
-            "testStrategy": "Conduct user testing to ensure commands and help text are clear. Verify visual indicators are distinct and intuitive for players to understand the difference between companions and regular villagers."
-          }
-        ]
+        "dependencies": [
+          2,
+          3,
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "System Integration, Optimization and Testing",
+        "description": "Integrate all components, optimize performance, conduct comprehensive testing, and prepare for deployment.",
+        "details": "1. Perform full system integration:\n   - Connect all components in development environment\n   - Implement end-to-end workflows\n   - Create system startup and shutdown procedures\n   - Add system health monitoring\n\n2. Optimize performance:\n   - Conduct profiling to identify bottlenecks\n   - Implement caching strategies for frequent operations\n   - Optimize network communication\n   - Reduce memory usage and garbage collection\n   - Implement thread pooling and async processing\n\n3. Develop comprehensive testing suite:\n   - Create automated unit and integration tests\n   - Implement performance benchmarks\n   - Add stress testing scenarios\n   - Create user acceptance testing plan\n\n4. Implement error handling and recovery:\n   - Add comprehensive logging system\n   - Create error detection and reporting\n   - Implement automatic recovery procedures\n   - Add diagnostic tools for troubleshooting\n\n5. Prepare deployment package:\n   - Create installation documentation\n   - Implement version checking and updates\n   - Add configuration validation\n   - Create backup and restore procedures\n\n6. Conduct security review:\n   - Audit API key handling\n   - Review data storage security\n   - Check for potential exploits\n   - Implement security best practices\n\nUse modern profiling tools like VisualVM or YourKit for Java and clinic.js for Node.js to identify performance bottlenecks.",
+        "testStrategy": "1. Conduct end-to-end testing of all features\n2. Perform load testing with multiple players and bots\n3. Measure performance metrics against success criteria\n4. Test installation on fresh server environments\n5. Conduct user acceptance testing with real players\n6. Verify error recovery in various failure scenarios\n7. Test compatibility with different server configurations",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
       }
     ],
     "metadata": {
-      "created": "2025-07-10T03:59:02.544Z",
-      "updated": "2025-07-10T08:51:36.033Z",
-      "description": "Tasks for master context"
+      "created": "2025-07-10T14:03:01.839Z",
+      "updated": "2025-07-10T14:04:51.962Z",
+      "description": "Tasks for hybrid-architecture context"
     }
   }
 }
