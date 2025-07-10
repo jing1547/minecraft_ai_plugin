@@ -10,9 +10,6 @@ general:
   
   # 한국어 설정
   language: "ko"
-  
-  # 최대 AI 동료 수 (플레이어당)
-  max-companions-per-player: 1
 
 # AI 설정
 ai:
@@ -37,6 +34,12 @@ ai:
   companion:
     # 기본 이름
     default-name: "AI동료"
+    
+    # 플레이어당 최대 AI 동료 수
+    max-per-player: 5
+    
+    # 서버 재시작 시 AI 동료 재생성
+    respawn-on-restart: true
     
     # AI 성격 설정
     personality: "친근하고 도움이 되는 마인크래프트 전문가"

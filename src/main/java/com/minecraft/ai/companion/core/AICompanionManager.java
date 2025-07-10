@@ -3,6 +3,7 @@ package com.minecraft.ai.companion.core;
 import com.minecraft.ai.companion.MinecraftAICompanionPlugin;
 import com.minecraft.ai.companion.data.CompanionData;
 import com.minecraft.ai.companion.entity.AICompanionEntity;
+import com.agjagjn.minecraft_ai.entity.FakePlayerCompanion;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
@@ -26,20 +27,26 @@ public class AICompanionManager {
     
     private final MinecraftAICompanionPlugin plugin;
     
-    // 활성화된 AI 동료들 (CompanionID -> AICompanionEntity)
-    private final Map<UUID, AICompanionEntity> activeCompanions;
+    // 활성화된 AI 동료들 (CompanionID -> FakePlayerCompanion)
+    private final Map<UUID, FakePlayerCompanion> activeCompanions;
     
-    // 플레이어별 동료 데이터 (PlayerID -> CompanionData)
-    private final Map<UUID, CompanionData> companionDataMap;
+    // 플레이어별 동료 데이터 목록 (PlayerID -> List<CompanionData>)
+    private final Map<UUID, List<CompanionData>> companionDataMap;
     
     // 데이터 파일
     private File dataFile;
     private FileConfiguration dataConfig;
     
+    // 플레이어당 최대 AI 동료 수
+    private final int maxCompanionsPerPlayer;
+    
     public AICompanionManager(MinecraftAICompanionPlugin plugin) {
         this.plugin = plugin;
         this.activeCompanions = new HashMap<>();
         this.companionDataMap = new HashMap<>();
+        
+        // 설정에서 최대 동료 수 읽기
+        this.maxCompanionsPerPlayer = plugin.getConfig().getInt("ai.companion.max-per-player", 5);
         
         // 데이터 파일 초기화
         initializeDataFile();
@@ -47,7 +54,7 @@ public class AICompanionManager {
         // 저장된 데이터 로드
         loadCompanionData();
         
-        plugin.getLogger().info("✅ AI 동료 관리자가 초기화되었습니다.");
+        plugin.getLogger().info("✅ AI 동료 관리자가 초기화되었습니다. (플레이어당 최대 " + maxCompanionsPerPlayer + "명)");
     }
     
     /**
@@ -81,16 +88,19 @@ public class AICompanionManager {
                 Map<String, Object> dataMap = (Map<String, Object>) dataConfig.get(key);
                 CompanionData data = CompanionData.deserialize(dataMap);
                 
-                companionDataMap.put(data.getOwnerId(), data);
+                // 플레이어별 목록에 추가
+                UUID ownerId = data.getOwnerId();
+                companionDataMap.computeIfAbsent(ownerId, k -> new ArrayList<>()).add(data);
                 
-                plugin.getLogger().info("동료 데이터 로드: " + data.getName() + " (소유자: " + data.getOwnerId() + ")");
+                plugin.getLogger().info("동료 데이터 로드: " + data.getName() + " (소유자: " + ownerId + ")");
                 
             } catch (Exception e) {
                 plugin.getLogger().warning("동료 데이터 로드 실패 (키: " + key + "): " + e.getMessage());
             }
         }
         
-        plugin.getLogger().info("총 " + companionDataMap.size() + "개의 동료 데이터를 로드했습니다.");
+        int totalCompanions = companionDataMap.values().stream().mapToInt(List::size).sum();
+        plugin.getLogger().info("총 " + totalCompanions + "개의 동료 데이터를 로드했습니다.");
     }
     
     /**
@@ -105,14 +115,50 @@ public class AICompanionManager {
         }
         
         // 새 데이터 저장
-        for (CompanionData data : companionDataMap.values()) {
-            dataConfig.set(data.getCompanionId().toString(), data.serialize());
+        for (List<CompanionData> companions : companionDataMap.values()) {
+            for (CompanionData data : companions) {
+                dataConfig.set(data.getCompanionId().toString(), data.serialize());
+            }
         }
         
         try {
             dataConfig.save(dataFile);
         } catch (IOException e) {
             plugin.getLogger().severe("동료 데이터 저장 실패: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * 서버 시작 시 저장된 동료들을 재생성합니다.
+     */
+    public void respawnSavedCompanions() {
+        plugin.getLogger().info("저장된 AI 동료들을 재생성하는 중...");
+        
+        for (Map.Entry<UUID, List<CompanionData>> entry : companionDataMap.entrySet()) {
+            Player owner = plugin.getServer().getPlayer(entry.getKey());
+            
+            if (owner != null && owner.isOnline()) {
+                for (CompanionData data : entry.getValue()) {
+                    if (data.isActive()) {
+                        respawnCompanion(owner, data);
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * 저장된 데이터로부터 동료를 재생성합니다.
+     */
+    private void respawnCompanion(Player owner, CompanionData data) {
+        try {
+            FakePlayerCompanion companion = new FakePlayerCompanion(plugin, owner, data);
+            activeCompanions.put(data.getCompanionId(), companion);
+            
+            plugin.getLogger().info("AI 동료 '" + data.getName() + "'이(가) 재생성되었습니다.");
+        } catch (Exception e) {
+            plugin.getLogger().severe("AI 동료 재생성 실패: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -130,36 +176,37 @@ public class AICompanionManager {
             return false;
         }
         
-        // 이미 동료가 있는지 확인
-        if (hasActiveCompanion(owner)) {
-            owner.sendMessage(ChatColor.RED + "❌ 이미 활성화된 AI 동료가 있습니다!");
+        // 현재 플레이어의 동료 수 확인
+        List<CompanionData> playerCompanions = companionDataMap.getOrDefault(owner.getUniqueId(), new ArrayList<>());
+        long activeCount = playerCompanions.stream().filter(CompanionData::isActive).count();
+        
+        if (activeCount >= maxCompanionsPerPlayer) {
+            owner.sendMessage(ChatColor.RED + "❌ 최대 " + maxCompanionsPerPlayer + "명의 AI 동료만 소환할 수 있습니다!");
             return false;
         }
         
         // 기본 이름 설정
         if (name == null || name.trim().isEmpty()) {
-            name = plugin.getConfig().getString("ai.companion.default-name", "AI동료");
+            name = plugin.getConfig().getString("ai.companion.default-name", "AI동료") + "_" + (activeCount + 1);
         }
         
         try {
             // 동료 데이터 생성
             CompanionData companionData = new CompanionData(owner, name, location);
             
-            // AI 동료 엔티티 생성
-            AICompanionEntity companion = new AICompanionEntity(plugin, companionData, owner);
+            // FakePlayer 동료 생성
+            FakePlayerCompanion companion = new FakePlayerCompanion(plugin, owner, companionData);
             
-            // 엔티티 소환
-            if (companion.spawn(location)) {
-                // 활성화된 동료 목록에 추가
-                activeCompanions.put(companionData.getCompanionId(), companion);
-                companionDataMap.put(owner.getUniqueId(), companionData);
-                
-                // 데이터 저장
-                saveCompanionData();
-                
-                plugin.getLogger().info("AI 동료 '" + name + "'이(가) " + owner.getName() + "에 의해 소환되었습니다.");
-                return true;
-            }
+            // 활성화된 동료 목록에 추가
+            activeCompanions.put(companionData.getCompanionId(), companion);
+            companionDataMap.computeIfAbsent(owner.getUniqueId(), k -> new ArrayList<>()).add(companionData);
+            
+            // 데이터 저장
+            saveCompanionData();
+            
+            owner.sendMessage(ChatColor.GREEN + "✅ AI 동료 '" + name + "'이(가) 소환되었습니다!");
+            plugin.getLogger().info("AI 동료 '" + name + "'이(가) " + owner.getName() + "에 의해 소환되었습니다.");
+            return true;
             
         } catch (Exception e) {
             plugin.getLogger().severe("AI 동료 소환 중 오류 발생: " + e.getMessage());
@@ -179,13 +226,27 @@ public class AICompanionManager {
     public boolean despawnCompanion(Player owner) {
         if (owner == null) return false;
         
-        CompanionData data = companionDataMap.get(owner.getUniqueId());
-        if (data == null) {
+        List<CompanionData> playerCompanions = companionDataMap.get(owner.getUniqueId());
+        if (playerCompanions == null || playerCompanions.isEmpty()) {
             owner.sendMessage(ChatColor.RED + "❌ 소환된 AI 동료가 없습니다!");
             return false;
         }
         
-        return despawnCompanion(data.getCompanionId());
+        // 활성화된 동료 중 하나를 제거
+        CompanionData dataToDespawn = null;
+        for (CompanionData data : playerCompanions) {
+            if (data.isActive()) {
+                dataToDespawn = data;
+                break;
+            }
+        }
+
+        if (dataToDespawn == null) {
+            owner.sendMessage(ChatColor.RED + "❌ 활성화된 AI 동료가 없습니다!");
+            return false;
+        }
+
+        return despawnCompanion(dataToDespawn.getCompanionId());
     }
     
     /**
@@ -195,18 +256,20 @@ public class AICompanionManager {
      * @return 제거 성공 여부
      */
     public boolean despawnCompanion(UUID companionId) {
-        AICompanionEntity companion = activeCompanions.get(companionId);
+        FakePlayerCompanion companion = activeCompanions.get(companionId);
         if (companion == null) {
             return false;
         }
         
         try {
             // 엔티티 제거
-            companion.despawn();
+            companion.destroy();
             
             // 목록에서 제거
             activeCompanions.remove(companionId);
-            companionDataMap.remove(companion.getOwner().getUniqueId());
+            
+            // 플레이어별 목록에서 제거
+            companionDataMap.values().forEach(companions -> companions.removeIf(data -> data.getCompanionId().equals(companionId)));
             
             // 데이터 저장
             saveCompanionData();
@@ -245,10 +308,12 @@ public class AICompanionManager {
      * @return 성공 여부
      */
     public boolean teleportToOwner(UUID companionId) {
-        AICompanionEntity companion = activeCompanions.get(companionId);
+        FakePlayerCompanion companion = activeCompanions.get(companionId);
         if (companion == null) return false;
         
-        companion.teleportToOwner();
+        // FakePlayerCompanion은 자동으로 플레이어를 따라가므로 강제 텔레포트
+        Location ownerLoc = companion.getOwner().getLocation();
+        companion.teleport(ownerLoc.clone().add(2, 0, 0));
         return true;
     }
     
@@ -258,13 +323,17 @@ public class AICompanionManager {
      * @param owner 소유자 플레이어
      * @return AI 동료 엔티티 (없으면 null)
      */
-    public AICompanionEntity getCompanionByOwner(Player owner) {
+    public FakePlayerCompanion getCompanionByOwner(Player owner) {
         if (owner == null) return null;
         
-        CompanionData data = companionDataMap.get(owner.getUniqueId());
-        if (data == null) return null;
-        
-        return activeCompanions.get(data.getCompanionId());
+        List<CompanionData> playerCompanions = companionDataMap.get(owner.getUniqueId());
+        if (playerCompanions == null || playerCompanions.isEmpty()) return null;
+
+        // 활성화된 동료 중 하나를 반환
+        return activeCompanions.values().stream()
+                .filter(companion -> playerCompanions.stream().anyMatch(data -> data.getCompanionId().equals(companion.getData().getCompanionId())))
+                .findFirst()
+                .orElse(null);
     }
     
     /**
@@ -273,7 +342,7 @@ public class AICompanionManager {
      * @param companionId 동료 ID
      * @return AI 동료 엔티티 (없으면 null)
      */
-    public AICompanionEntity getCompanion(UUID companionId) {
+    public FakePlayerCompanion getCompanion(UUID companionId) {
         return activeCompanions.get(companionId);
     }
     
@@ -301,7 +370,7 @@ public class AICompanionManager {
      * 
      * @return 동료 엔티티 목록
      */
-    public List<AICompanionEntity> getAllActiveCompanions() {
+    public List<FakePlayerCompanion> getAllActiveCompanions() {
         return new ArrayList<>(activeCompanions.values());
     }
     
@@ -311,7 +380,7 @@ public class AICompanionManager {
      * @param owner 소유자 플레이어
      * @return 동료 데이터 (없으면 null)
      */
-    public CompanionData getCompanionData(Player owner) {
+    public List<CompanionData> getCompanionData(Player owner) {
         if (owner == null) return null;
         return companionDataMap.get(owner.getUniqueId());
     }

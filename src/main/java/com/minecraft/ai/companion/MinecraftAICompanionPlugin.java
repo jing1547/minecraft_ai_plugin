@@ -42,11 +42,29 @@ public final class MinecraftAICompanionPlugin extends JavaPlugin {
         logger.info("=".repeat(50));
         
         try {
+            // ProtocolLib 확인
+            if (!checkProtocolLib()) {
+                logger.severe("❌ ProtocolLib가 설치되어 있지 않습니다!");
+                logger.severe("❌ 이 플러그인은 ProtocolLib가 필요합니다.");
+                logger.severe("❌ https://www.spigotmc.org/resources/protocollib.1997/ 에서 다운로드하세요.");
+                getServer().getPluginManager().disablePlugin(this);
+                return;
+            }
+            
             // 초기화 단계들
             initializeConfig();
             initializeManagers();
             registerCommands();
             registerListeners();
+            
+            // 서버 재시작 시 AI 동료 재생성
+            if (getConfig().getBoolean("ai.companion.respawn-on-restart", true)) {
+                // 서버가 완전히 로드된 후 AI 재생성
+                getServer().getScheduler().runTaskLater(this, () -> {
+                    logger.info("🔄 저장된 AI 동료들을 재생성합니다...");
+                    companionManager.respawnSavedCompanions();
+                }, 100L); // 5초 후 실행
+            }
             
             // 플러그인 성공적으로 로드됨
             logger.info("✅ 마인크래프트 AI 동료 플러그인이 성공적으로 활성화되었습니다!");
@@ -80,6 +98,13 @@ public final class MinecraftAICompanionPlugin extends JavaPlugin {
             logger.severe("❌ 플러그인 비활성화 중 오류가 발생했습니다: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+    
+    /**
+     * ProtocolLib 플러그인이 있는지 확인합니다.
+     */
+    private boolean checkProtocolLib() {
+        return getServer().getPluginManager().getPlugin("ProtocolLib") != null;
     }
     
     /**

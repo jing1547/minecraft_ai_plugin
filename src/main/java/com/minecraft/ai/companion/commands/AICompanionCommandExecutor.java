@@ -9,6 +9,7 @@ import org.bukkit.Location;
 
 import com.minecraft.ai.companion.MinecraftAICompanionPlugin;
 import com.minecraft.ai.companion.entity.AICompanionEntity;
+import com.agjagjn.minecraft_ai.entity.FakePlayerCompanion;
 import com.minecraft.ai.companion.data.CompanionData;
 
 import java.util.List;
@@ -231,14 +232,14 @@ public class AICompanionCommandExecutor implements CommandExecutor {
      * 동료 정보 표시
      */
     private boolean showCompanionInfo(Player player) {
-        AICompanionEntity companion = plugin.getCompanionManager().getCompanionByOwner(player);
+        FakePlayerCompanion companion = plugin.getCompanionManager().getCompanionByOwner(player);
         
         if (companion == null) {
             player.sendMessage(ChatColor.RED + "❌ 활성화된 AI 동료가 없습니다!");
             return true;
         }
         
-        CompanionData data = companion.getCompanionData();
+        CompanionData data = companion.getData();
         
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
         player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "🤖 AI 동료 정보");
@@ -247,12 +248,8 @@ public class AICompanionCommandExecutor implements CommandExecutor {
         player.sendMessage(ChatColor.YELLOW + "생성일: " + ChatColor.WHITE + new java.util.Date(data.getCreatedTime()));
         player.sendMessage(ChatColor.YELLOW + "상태: " + ChatColor.GREEN + "활성화");
         
-        if (companion.getVillagerEntity() != null) {
-            player.sendMessage(ChatColor.YELLOW + "체력: " + ChatColor.WHITE + 
-                             String.format("%.1f/%.1f", 
-                                         companion.getVillagerEntity().getHealth(), 
-                                         companion.getVillagerEntity().getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getValue()));
-        }
+        // FakePlayer는 항상 체력이 20
+        player.sendMessage(ChatColor.YELLOW + "체력: " + ChatColor.WHITE + "20.0/20.0");
         
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
         
@@ -263,14 +260,14 @@ public class AICompanionCommandExecutor implements CommandExecutor {
      * 텔레포트 명령어 처리
      */
     private boolean handleTeleportCommand(Player player) {
-        AICompanionEntity companion = plugin.getCompanionManager().getCompanionByOwner(player);
+        FakePlayerCompanion companion = plugin.getCompanionManager().getCompanionByOwner(player);
         
         if (companion == null) {
             player.sendMessage(ChatColor.RED + "❌ 활성화된 AI 동료가 없습니다!");
             return true;
         }
         
-        companion.teleportToOwner();
+        companion.teleport(player.getLocation().add(2, 0, 0));
         player.sendMessage(ChatColor.GREEN + "✅ AI 동료가 당신에게 텔레포트했습니다!");
         
         return true;
@@ -286,7 +283,7 @@ public class AICompanionCommandExecutor implements CommandExecutor {
             return true;
         }
         
-        List<AICompanionEntity> companions = plugin.getCompanionManager().getAllActiveCompanions();
+        List<FakePlayerCompanion> companions = plugin.getCompanionManager().getAllActiveCompanions();
         
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
         player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "📋 활성화된 AI 동료 목록");
@@ -294,8 +291,8 @@ public class AICompanionCommandExecutor implements CommandExecutor {
         if (companions.isEmpty()) {
             player.sendMessage(ChatColor.GRAY + "활성화된 AI 동료가 없습니다.");
         } else {
-            for (AICompanionEntity companion : companions) {
-                CompanionData data = companion.getCompanionData();
+            for (FakePlayerCompanion companion : companions) {
+                CompanionData data = companion.getData();
                 player.sendMessage(ChatColor.YELLOW + "• " + ChatColor.WHITE + data.getName() + 
                                  ChatColor.GRAY + " (소유자: " + companion.getOwner().getName() + ")");
             }

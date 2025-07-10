@@ -6,7 +6,7 @@ website: https://github.com/minecraft-ai/companion-plugin
 main: com.minecraft.ai.companion.MinecraftAICompanionPlugin
 
 api-version: 1.20
-depend: []
+depend: [ProtocolLib]
 softdepend: []
 loadbefore: []
 
@@ -55,19 +55,19 @@ permissions:
     
   aicompanion.spawn:
     description: Permission to spawn AI companions
-    default: true
+    default: op
     
   aicompanion.remove:
     description: Permission to remove AI companions
-    default: true
+    default: op
     
   aicompanion.settings:
     description: Permission to modify AI companion settings
-    default: true
+    default: op
     
   aicompanion.voice:
     description: Permission to use voice interaction features
-    default: true
+    default: op
     
   aicompanion.admin:
     description: Administrative permissions for AI Companion
