@@ -177,7 +177,7 @@ public final class MinecraftAICompanionPlugin extends JavaPlugin {
      */
     public void showPluginInfo(Player player) {
         player.sendMessage(ChatColor.GOLD + "=".repeat(50));
-        player.sendMessage(ChatColor.GREEN + ChatColor.BOLD + "🤖 마인크래프트 AI 동료 플러그인");
+        player.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "🤖 마인크래프트 AI 동료 플러그인");
         player.sendMessage(ChatColor.YELLOW + "버전: " + ChatColor.WHITE + getDescription().getVersion());
         player.sendMessage(ChatColor.YELLOW + "제작자: " + ChatColor.WHITE + getDescription().getAuthors());
         player.sendMessage(ChatColor.YELLOW + "설명: " + ChatColor.WHITE + getDescription().getDescription());
