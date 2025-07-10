@@ -1,0 +1,174 @@
+# 마인크래프트 AI 동료 플러그인 설정
+
+# 일반 설정
+general:
+  # 플러그인 활성화 여부
+  enabled: true
+  
+  # 디버그 모드 (개발용)
+  debug: false
+  
+  # 한국어 설정
+  language: "ko"
+  
+  # 최대 AI 동료 수 (플레이어당)
+  max-companions-per-player: 1
+
+# AI 설정
+ai:
+  # OpenAI API 설정
+  openai:
+    # API 키 (반드시 설정해야 함)
+    api-key: "YOUR_OPENAI_API_KEY_HERE"
+    
+    # 사용할 모델 (gpt-3.5-turbo, gpt-4, etc.)
+    model: "gpt-3.5-turbo"
+    
+    # 최대 토큰 수
+    max-tokens: 150
+    
+    # 응답 온도 (창의성 조절, 0.0-2.0)
+    temperature: 0.7
+    
+    # 요청 타임아웃 (초)
+    timeout: 30
+
+  # AI 동료 기본 설정
+  companion:
+    # 기본 이름
+    default-name: "AI동료"
+    
+    # AI 성격 설정
+    personality: "친근하고 도움이 되는 마인크래프트 전문가"
+    
+    # 기본 응답 언어
+    response-language: "Korean"
+    
+    # 게임 지식 레벨 (1-10)
+    game-knowledge-level: 8
+
+# 음성 설정
+voice:
+  # 음성 기능 활성화 여부
+  enabled: true
+  
+  # STT (Speech-to-Text) 설정
+  stt:
+    # Google Cloud Speech API 키
+    google-api-key: "YOUR_GOOGLE_CLOUD_API_KEY_HERE"
+    
+    # 언어 코드
+    language-code: "ko-KR"
+    
+    # 샘플링 레이트
+    sample-rate: 16000
+    
+    # 음성 인식 타임아웃 (초)
+    timeout: 10
+    
+    # 최소 음성 길이 (초)
+    min-audio-length: 1.0
+
+  # TTS (Text-to-Speech) 설정
+  tts:
+    # TTS 서비스 제공자 (google, naver)
+    provider: "google"
+    
+    # Google Cloud TTS 설정
+    google:
+      api-key: "YOUR_GOOGLE_CLOUD_TTS_API_KEY_HERE"
+      voice-name: "ko-KR-Standard-A"
+      speaking-rate: 1.0
+      pitch: 0.0
+      volume-gain-db: 0.0
+    
+    # 네이버 Clova Voice 설정
+    naver:
+      client-id: "YOUR_NAVER_CLIENT_ID"
+      client-secret: "YOUR_NAVER_CLIENT_SECRET"
+      voice: "nara"
+      speed: 0
+      pitch: 0
+
+# 게임플레이 설정
+gameplay:
+  # AI 동료 행동 설정
+  behavior:
+    # 자동으로 플레이어 따라가기
+    auto-follow: true
+    
+    # 따라가기 거리
+    follow-distance: 3.0
+    
+    # 자동 자원 수집
+    auto-collect-resources: true
+    
+    # 자동 몬스터 공격
+    auto-attack-monsters: true
+    
+    # 자동 건축 지원
+    auto-build-assist: true
+    
+    # 밤에 잠자기
+    sleep-at-night: false
+
+  # 상호작용 설정
+  interaction:
+    # 채팅 응답 확률 (0.0-1.0)
+    chat-response-rate: 0.8
+    
+    # 자동 인사
+    auto-greet: true
+    
+    # 플레이어 도움 요청 감지
+    detect-help-requests: true
+    
+    # 상황별 조언 제공
+    contextual-advice: true
+
+# Yes Steve Model 통합 설정
+yes-steve-model:
+  # Yes Steve Model 통합 활성화
+  enabled: false
+  
+  # 모델 파일 경로
+  model-path: "plugins/YesSteve/models/"
+  
+  # 기본 스킨
+  default-skin: "steve"
+  
+  # 애니메이션 설정
+  animations:
+    # 립싱크 활성화
+    lip-sync: true
+    
+    # 표정 변화
+    facial-expressions: true
+    
+    # 제스처
+    gestures: true
+
+# 성능 최적화 설정
+performance:
+  # AI 처리 주기 (틱 단위)
+  ai-update-interval: 20
+  
+  # 음성 처리 버퍼 크기
+  audio-buffer-size: 4096
+  
+  # 최대 동시 음성 처리 수
+  max-concurrent-voice-processing: 3
+  
+  # 메모리 사용량 제한 (MB)
+  max-memory-usage: 512
+
+# 개발자 설정
+developer:
+  # API 호출 로깅
+  log-api-calls: false
+  
+  # 성능 메트릭 수집
+  collect-metrics: false
+  
+  # 오류 리포팅
+  error-reporting: true 
