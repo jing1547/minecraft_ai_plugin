@@ -10,6 +10,7 @@ import org.bukkit.Location;
 import com.minecraft.ai.companion.MinecraftAICompanionPlugin;
 import com.minecraft.ai.companion.entity.AICompanionEntity;
 import com.agjagjn.minecraft_ai.entity.FakePlayerCompanion;
+import com.agjagjn.minecraft_ai.entity.AICompanionInterface;
 import com.minecraft.ai.companion.data.CompanionData;
 import com.minecraft.ai.companion.core.DependencyManager;
 
@@ -242,14 +243,14 @@ public class AICompanionCommandExecutor implements CommandExecutor {
      * 동료 정보 표시
      */
     private boolean showCompanionInfo(Player player) {
-        FakePlayerCompanion companion = plugin.getCompanionManager().getCompanionByOwner(player);
+        AICompanionInterface companion = plugin.getCompanionManager().getCompanionByOwner(player);
         
         if (companion == null) {
             player.sendMessage(ChatColor.RED + "❌ 활성화된 AI 동료가 없습니다!");
             return true;
         }
         
-        CompanionData data = companion.getData();
+        CompanionData data = companion.getCompanionData();
         
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
         player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "🤖 AI 동료 정보");
@@ -270,7 +271,7 @@ public class AICompanionCommandExecutor implements CommandExecutor {
      * 텔레포트 명령어 처리
      */
     private boolean handleTeleportCommand(Player player) {
-        FakePlayerCompanion companion = plugin.getCompanionManager().getCompanionByOwner(player);
+        AICompanionInterface companion = plugin.getCompanionManager().getCompanionByOwner(player);
         
         if (companion == null) {
             player.sendMessage(ChatColor.RED + "❌ 활성화된 AI 동료가 없습니다!");
@@ -293,7 +294,7 @@ public class AICompanionCommandExecutor implements CommandExecutor {
             return true;
         }
         
-        List<FakePlayerCompanion> companions = plugin.getCompanionManager().getAllActiveCompanions();
+        List<AICompanionInterface> companions = plugin.getCompanionManager().getAllActiveCompanions();
         
         player.sendMessage(ChatColor.GOLD + "═══════════════════════════════");
         player.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "📋 활성화된 AI 동료 목록");
@@ -301,8 +302,8 @@ public class AICompanionCommandExecutor implements CommandExecutor {
         if (companions.isEmpty()) {
             player.sendMessage(ChatColor.GRAY + "활성화된 AI 동료가 없습니다.");
         } else {
-            for (FakePlayerCompanion companion : companions) {
-                CompanionData data = companion.getData();
+            for (AICompanionInterface companion : companions) {
+                CompanionData data = companion.getCompanionData();
                 player.sendMessage(ChatColor.YELLOW + "• " + ChatColor.WHITE + data.getName() + 
                                  ChatColor.GRAY + " (소유자: " + companion.getOwner().getName() + ")");
             }

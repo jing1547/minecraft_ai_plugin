@@ -4,6 +4,7 @@ import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.events.PacketContainer;
 import com.comphenix.protocol.wrappers.*;
+import com.comphenix.protocol.wrappers.PlayerInfoData;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -84,22 +85,62 @@ public class FakePlayer {
     public void teleport(Location location) {
         this.location = location.clone();
         
-        // Skip sending teleport packets due to 1.21.6+ compatibility issues
-        // Position is updated internally but not visually synchronized
-        plugin.getLogger().info("Position updated internally (teleport packets disabled for 1.21.6+ compatibility)");
-        
-        // Alternative: For visible updates, we could destroy and respawn the entity
-        // But for now, we'll just update the internal position
+        // Send teleport packets to all observers
+        for (Player player : observers) {
+            sendTeleportPacket(player);
+        }
     }
     
     private void sendPlayerInfoPacket(Player player, boolean add) {
-        // Skip player info packets due to 1.21.6+ compatibility issues
-        // This means the fake player won't appear in the tab list, but will still be visible as an entity
-        plugin.getLogger().info("Skipping player info packet due to 1.21.6+ compatibility issues");
-        
-        // Alternative: Send a simple chat message to notify players
-        if (add) {
-            player.sendMessage("§a[AI] §f" + name + " §a동료가 근처에 있습니다.");
+        try {
+            PacketContainer packet;
+            
+            if (add) {
+                // Add player to tab list
+                packet = ProtocolLibrary.getProtocolManager().createPacket(getPlayerInfoPacketType());
+                
+                // Try to set player info data
+                try {
+                    // Create game profile with skin data
+                    WrappedGameProfile profile = new WrappedGameProfile(uuid, name);
+                    if (!skinTexture.isEmpty() && !skinSignature.isEmpty()) {
+                        profile.getProperties().put("textures", 
+                            new WrappedSignedProperty("textures", skinTexture, skinSignature));
+                    }
+                    
+                    // For newer versions, use PlayerInfoData
+                    List<PlayerInfoData> data = new ArrayList<>();
+                    data.add(new PlayerInfoData(profile, 0, EnumWrappers.NativeGameMode.SURVIVAL, 
+                        WrappedChatComponent.fromText(name)));
+                    
+                    packet.getPlayerInfoDataLists().write(0, data);
+                    
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Failed to set player info data, using fallback: " + e.getMessage());
+                    // Fallback: just send basic packet
+                }
+                
+                ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+                plugin.getLogger().info("Successfully sent player info ADD packet for " + name);
+                
+            } else {
+                // Remove player from tab list
+                try {
+                    packet = ProtocolLibrary.getProtocolManager().createPacket(getPlayerInfoRemovePacketType());
+                    packet.getUUIDs().write(0, uuid);
+                    ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+                    plugin.getLogger().info("Successfully sent player info REMOVE packet for " + name);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("Failed to send player info REMOVE packet: " + e.getMessage());
+                }
+            }
+            
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to send player info packet for " + name + ": " + e.getMessage());
+            // Fallback: Send chat message to notify players
+            if (add) {
+                player.sendMessage("§a[AI] §f" + name + " §a동료가 근처에 있습니다.");
+            }
         }
     }
     
@@ -130,8 +171,8 @@ public class FakePlayer {
                  packet.getIntegers().write(0, entityId); // Entity ID
                  packet.getUUIDs().write(0, uuid); // UUID
                  
-                 // Use villager entity type instead of player for better compatibility
-                 packet.getIntegers().write(1, 18); // Entity type ID for villager (18 is more stable)
+                 // Use player entity type for realistic appearance
+                 packet.getIntegers().write(1, 106); // Entity type ID for player
                  packet.getDoubles()
                      .write(0, location.getX())
                      .write(1, location.getY())
@@ -178,21 +219,57 @@ public class FakePlayer {
     }
     
     private void sendTeleportPacket(Player player) {
-        // Skip teleport packets due to 1.21.6+ compatibility issues
-        // This means smooth teleportation won't work, but basic movement will still function
-        plugin.getLogger().info("Skipping teleport packet due to 1.21.6+ compatibility issues");
-        
-        // Alternative: Use destroy and respawn for position updates if needed
-        // For now, we'll rely on the basic spawn location updates
+        try {
+            PacketContainer packet = ProtocolLibrary.getProtocolManager().createPacket(PacketType.Play.Server.ENTITY_TELEPORT);
+            packet.getIntegers().write(0, entityId);
+            packet.getDoubles()
+                .write(0, location.getX())
+                .write(1, location.getY())
+                .write(2, location.getZ());
+            packet.getBytes()
+                .write(0, (byte) (location.getYaw() * 256 / 360))
+                .write(1, (byte) (location.getPitch() * 256 / 360));
+            packet.getBooleans().write(0, true); // On ground
+            
+            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+            plugin.getLogger().info("Successfully sent teleport packet for " + name);
+            
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to send teleport packet for " + name + ": " + e.getMessage());
+            // Alternative: Use destroy and respawn for position updates if needed
+        }
     }
     
     private void sendEntityMetadataPacket(Player player) {
-        // Skip entity metadata packets due to 1.21.6+ compatibility issues
-        // This means the fake player won't have custom metadata, but will still be visible
-        plugin.getLogger().info("Skipping entity metadata packet due to 1.21.6+ compatibility issues");
-        
-        // The entity will still be visible without metadata
-        // Basic spawn functionality will work without custom metadata
+        try {
+            PacketContainer packet = ProtocolLibrary.getProtocolManager().createPacket(PacketType.Play.Server.ENTITY_METADATA);
+            packet.getIntegers().write(0, entityId);
+            
+            // Create entity metadata
+            WrappedDataWatcher watcher = new WrappedDataWatcher();
+            
+            // Basic entity metadata
+            setEntityMetadata(watcher, 0, Byte.class, (byte) 0); // Entity flags
+            setEntityMetadata(watcher, 1, Integer.class, 300); // Air ticks
+            setEntityMetadata(watcher, 2, String.class, name); // Custom name
+            setEntityMetadata(watcher, 3, Boolean.class, true); // Custom name visible
+            setEntityMetadata(watcher, 4, Boolean.class, false); // Silent
+            setEntityMetadata(watcher, 5, Boolean.class, false); // No gravity
+            
+            // Player-specific metadata (for humanoid appearance)
+            setEntityMetadata(watcher, 14, Float.class, 20.0f); // Health
+            setEntityMetadata(watcher, 15, Byte.class, (byte) 0x7F); // Skin parts (all visible)
+            setEntityMetadata(watcher, 16, Byte.class, (byte) 1); // Main hand (right)
+            
+            packet.getWatchableCollectionModifier().write(0, watcher.getWatchableObjects());
+            
+            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+            plugin.getLogger().info("Successfully sent entity metadata packet for " + name);
+            
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to send entity metadata packet for " + name + ": " + e.getMessage());
+            // Entity will still be visible without metadata
+        }
     }
     
     private <T> void setEntityMetadata(WrappedDataWatcher watcher, int index, Class<T> type, T value) {
@@ -207,12 +284,35 @@ public class FakePlayer {
     }
     
     private void sendEquipmentPacket(Player player) {
-        // Skip equipment packets due to 1.21.6+ compatibility issues
-        // This means the fake player won't show equipment, but will still be visible
-        plugin.getLogger().info("Skipping equipment packet due to 1.21.6+ compatibility issues");
-        
-        // The entity will still be visible without equipment
-        // Equipment display can be added later once ProtocolLib is fully compatible
+        try {
+            PacketContainer packet = ProtocolLibrary.getProtocolManager().createPacket(PacketType.Play.Server.ENTITY_EQUIPMENT);
+            packet.getIntegers().write(0, entityId);
+            
+            // Create equipment list
+            List<Pair<EnumWrappers.ItemSlot, ItemStack>> equipmentList = new ArrayList<>();
+            
+            // Add main hand equipment
+            if (mainHand != null && mainHand.getType() != Material.AIR) {
+                equipmentList.add(new Pair<>(EnumWrappers.ItemSlot.MAINHAND, mainHand));
+            }
+            
+            // Add off hand equipment
+            if (offHand != null && offHand.getType() != Material.AIR) {
+                equipmentList.add(new Pair<>(EnumWrappers.ItemSlot.OFFHAND, offHand));
+            }
+            
+            // Set equipment data
+            if (!equipmentList.isEmpty()) {
+                packet.getSlotStackPairLists().write(0, equipmentList);
+            }
+            
+            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+            plugin.getLogger().info("Successfully sent equipment packet for " + name);
+            
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to send equipment packet for " + name + ": " + e.getMessage());
+            // Entity will still be visible without equipment
+        }
     }
     
     private void updateSkin() {
@@ -226,9 +326,18 @@ public class FakePlayer {
     }
     
     public void playAnimation(Player observer, AnimationType animation) {
-        // Skip animation packets due to 1.21.6+ compatibility issues
-        // This means animations won't play, but the entity will still be visible
-        plugin.getLogger().info("Skipping animation packet due to 1.21.6+ compatibility issues");
+        try {
+            PacketContainer packet = ProtocolLibrary.getProtocolManager().createPacket(PacketType.Play.Server.ANIMATION);
+            packet.getIntegers()
+                .write(0, entityId)
+                .write(1, animation.getId());
+            
+            ProtocolLibrary.getProtocolManager().sendServerPacket(observer, packet);
+            plugin.getLogger().info("Successfully sent animation packet for " + name + " (animation: " + animation.name() + ")");
+            
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to send animation packet for " + name + ": " + e.getMessage());
+        }
     }
     
     public void lookAt(Location target) {
@@ -252,9 +361,17 @@ public class FakePlayer {
     }
     
     private void sendHeadRotationPacket(Player player, float yaw) {
-        // Skip head rotation packets due to 1.21.6+ compatibility issues
-        // This means the entity's head won't rotate smoothly, but will still be visible
-        plugin.getLogger().info("Skipping head rotation packet due to 1.21.6+ compatibility issues");
+        try {
+            PacketContainer packet = ProtocolLibrary.getProtocolManager().createPacket(PacketType.Play.Server.ENTITY_HEAD_ROTATION);
+            packet.getIntegers().write(0, entityId);
+            packet.getBytes().write(0, (byte) (yaw * 256 / 360));
+            
+            ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
+            plugin.getLogger().info("Successfully sent head rotation packet for " + name);
+            
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to send head rotation packet for " + name + ": " + e.getMessage());
+        }
     }
     
     public void setEquipment(ItemStack mainHand, ItemStack offHand) {
