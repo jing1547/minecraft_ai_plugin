@@ -1,0 +1,9 @@
+com\minecraft\ai\companion\entity\AICompanionEntity.class
+com\minecraft\ai\companion\core\AICompanionManager.class
+com\minecraft\ai\companion\MinecraftAICompanionPlugin.class
+com\minecraft\ai\companion\commands\AICompanionCommandExecutor.class
+com\minecraft\ai\companion\entity\AICompanionEntity$1.class
+com\minecraft\ai\companion\entity\AICompanionEntity$2.class
+com\minecraft\ai\companion\listeners\PlayerEventListener.class
+com\minecraft\ai\companion\data\CompanionData.class
+com\minecraft\ai\companion\core\ConfigManager.class

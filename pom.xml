@@ -150,6 +150,18 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                            <!-- 서명 파일 제외 설정 -->
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>META-INF/MANIFEST.MF</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
                             <relocations>
                                 <!-- Relocate dependencies to avoid conflicts -->
                                 <relocation>
