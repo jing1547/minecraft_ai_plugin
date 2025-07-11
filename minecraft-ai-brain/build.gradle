@@ -1,0 +1,82 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'com.minecraft.ai'
+version = '1.0.0-SNAPSHOT'
+description = 'Minecraft AI Brain - Java Plugin Component'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+    
+    // Spigot/Paper repositories
+    maven {
+        name = 'spigotmc-repo'
+        url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+    }
+    
+    maven {
+        name = 'sonatype'
+        url = 'https://oss.sonatype.org/content/groups/public/'
+    }
+}
+
+dependencies {
+    // Spigot/Paper API
+    compileOnly 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
+    
+    // JSON processing
+    implementation 'com.google.code.gson:gson:2.10.1'
+    
+    // WebSocket communication
+    implementation 'org.java-websocket:Java-WebSocket:1.5.4'
+    
+    // Logging
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'ch.qos.logback:logback-classic:1.4.11'
+    
+    // Testing
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core:5.7.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.7.0'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    relocate 'com.google.gson', 'com.minecraft.ai.brain.libs.gson'
+    relocate 'org.java_websocket', 'com.minecraft.ai.brain.libs.websocket'
+    relocate 'ch.qos.logback', 'com.minecraft.ai.brain.libs.logback'
+    relocate 'org.slf4j', 'com.minecraft.ai.brain.libs.slf4j'
+}
+
+processResources {
+    from(sourceSets.main.resources.srcDirs) {
+        filter { line ->
+            line.replace('${version}', project.version.toString())
+        }
+    }
+}
+
+compileJava.options.encoding = 'UTF-8'
+compileTestJava.options.encoding = 'UTF-8'
+
+jar {
+    enabled = false
+}
+
+build {
+    dependsOn shadowJar
+} 

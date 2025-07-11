@@ -1,0 +1,62 @@
+name: MinecraftAIBrain
+version: ${version}
+description: AI Brain component for Minecraft hybrid architecture - Java Plugin that manages AI conversations, voice processing, and WebSocket communication with Node.js bot
+main: com.minecraft.ai.brain.MinecraftAIBrainPlugin
+api-version: 1.20
+author: MinecraftAI Team
+website: https://github.com/minecraft-ai/minecraft-ai-brain
+
+# Plugin load order
+load: STARTUP
+depend: []
+softdepend: []
+
+# Commands
+commands:
+  ai:
+    description: Main AI companion command
+    usage: /ai [subcommand]
+    permission: minecraft.ai.use
+    aliases: [companion, aibot]
+  
+  ai-config:
+    description: Configure AI settings
+    usage: /ai-config [setting] [value]
+    permission: minecraft.ai.admin
+  
+  ai-voice:
+    description: Voice interaction commands
+    usage: /ai-voice [start|stop|test]
+    permission: minecraft.ai.voice
+  
+  ai-debug:
+    description: Debug AI system
+    usage: /ai-debug [status|logs|reset]
+    permission: minecraft.ai.debug
+
+# Permissions
+permissions:
+  minecraft.ai.*:
+    description: All AI permissions
+    default: false
+    children:
+      minecraft.ai.use: true
+      minecraft.ai.voice: true
+      minecraft.ai.admin: true
+      minecraft.ai.debug: true
+  
+  minecraft.ai.use:
+    description: Basic AI companion usage
+    default: true
+  
+  minecraft.ai.voice:
+    description: Use voice interaction features
+    default: true
+  
+  minecraft.ai.admin:
+    description: Administrative AI functions
+    default: op
+  
+  minecraft.ai.debug:
+    description: Debug and diagnostic commands
+    default: op 

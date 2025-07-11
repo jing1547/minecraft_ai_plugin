@@ -1,0 +1,23 @@
+rootProject.name = 'minecraft-ai-brain'
+
+// Enable Gradle's improved dependency management
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+        
+        // Spigot/Paper repositories
+        maven {
+            name = 'spigotmc-repo'
+            url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+        }
+        
+        maven {
+            name = 'sonatype'
+            url = 'https://oss.sonatype.org/content/groups/public/'
+        }
+    }
+}
+
+// Enable Gradle features
+enableFeaturePreview('TYPESAFE_PROJECT_ACCESSORS') 
