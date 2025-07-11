@@ -1,0 +1,46 @@
+# Task ID: 1
+# Title: Setup Project Structure and Repository
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Initialize the project repository with both Java Plugin and Node.js components, including proper directory structure, build configurations, and dependency management.
+# Details:
+Create a monorepo structure with two main directories:
+1. `minecraft-ai-brain` (Java Plugin):
+   - Use Maven or Gradle (preferably Gradle 8.x) for dependency management
+   - Configure for Java 17+
+   - Add Spigot/Paper API 1.20.4 as dependency
+   - Include Gson 2.10.1 for JSON processing
+   - Add Java-WebSocket 1.5.3 for WebSocket communication
+   - Setup plugin.yml with proper metadata
+
+2. `minecraft-ai-body` (Node.js Mineflayer Bot):
+   - Initialize with npm/yarn and Node.js 18+
+   - Add dependencies: mineflayer 4.x, mineflayer-pathfinder, mineflayer-builder, mineflayer-pvp
+   - Add ws 8.x for WebSocket communication
+   - Configure TypeScript (optional but recommended)
+
+3. Create shared protocol definition files for communication between components
+4. Setup .gitignore, README.md, and documentation structure
+5. Configure CI/CD pipeline (GitHub Actions or similar)
+
+# Test Strategy:
+1. Verify project builds successfully in both components
+2. Ensure all dependencies resolve correctly
+3. Validate plugin loads in a test Minecraft server
+4. Confirm Mineflayer bot connects to a test server
+5. Test repository cloning and building on a fresh environment
+
+# Subtasks:
+## 1. Initialize Repository and Project Structure [pending]
+### Dependencies: None
+### Description: Create the base repository structure with proper configuration files, documentation, and directory layout for the monorepo approach.
+### Details:
+1. Create a new Git repository
+2. Setup root directory with README.md explaining project purpose and components
+3. Create .gitignore file with appropriate entries for Java, Node.js, IDE files
+4. Create directories: `minecraft-ai-brain` and `minecraft-ai-body`
+5. Add LICENSE file
+6. Create docs/ directory with initial architecture documentation
+7. Setup basic CONTRIBUTING.md guidelines
+

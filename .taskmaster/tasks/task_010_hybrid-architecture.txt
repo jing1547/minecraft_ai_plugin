@@ -1,0 +1,71 @@
+# Task ID: 10
+# Title: Implement Combat and Protection System
+# Status: pending
+# Dependencies: 3, 9
+# Priority: medium
+# Description: Develop the combat and protection system allowing the AI companion to engage in combat, protect the player, and handle various weapons and combat situations.
+# Details:
+1. Integrate mineflayer-pvp for combat capabilities:
+```javascript
+function setupCombat() {
+  const pvp = require('mineflayer-pvp').plugin;
+  this.bot.loadPlugin(pvp);
+  
+  // Configure combat settings
+  this.bot.pvp.attackRange = 3;
+  this.bot.pvp.followRange = 6;
+  
+  // Add combat methods
+  this.attackEntity = (entityName) => {
+    const entity = this.bot.entities[entityName];
+    if (!entity) return false;
+    
+    this.bot.pvp.attack(entity);
+    return true;
+  };
+  
+  this.protectPlayer = (playerName) => {
+    const player = this.bot.players[playerName]?.entity;
+    if (!player) return false;
+    
+    // Start protection mode
+    this.protectionTarget = player;
+    this.isProtecting = true;
+    this.startProtectionLoop();
+    return true;
+  };
+}
+```
+
+2. Implement weapon selection and management:
+   - Create weapon effectiveness ranking
+   - Add automatic weapon switching based on situation
+   - Implement durability monitoring
+
+3. Develop tactical combat behaviors:
+   - Add strafing and circling movements
+   - Implement retreat when low health
+   - Create ranged combat tactics
+   - Add shield usage and blocking
+
+4. Create player protection system:
+   - Implement threat detection and prioritization
+   - Add positioning to intercept threats
+   - Create alerts for dangerous situations
+
+5. Implement combat coordination with player:
+   - Add target focusing based on player attacks
+   - Create combo attack patterns
+   - Implement flanking maneuvers
+
+6. Add combat analytics and improvement system
+7. Implement difficulty scaling based on player skill
+
+# Test Strategy:
+1. Test combat effectiveness against various mob types
+2. Verify weapon selection logic
+3. Test protection behavior with simulated threats
+4. Validate tactical movement in combat
+5. Measure combat performance metrics
+6. Test coordination with player actions
+7. Verify retreat and self-preservation behaviors

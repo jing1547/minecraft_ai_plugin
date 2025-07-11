@@ -1,0 +1,53 @@
+# Task ID: 4
+# Title: Implement Java Plugin Core Framework
+# Status: pending
+# Dependencies: 2
+# Priority: high
+# Description: Develop the core Java Plugin framework including event handling, command registration, configuration management, and player interaction systems.
+# Details:
+1. Create main plugin class structure:
+```java
+public class MinecraftAIBrain extends JavaPlugin {
+    private WebSocketServer server;
+    private AIManager aiManager;
+    private ConfigManager configManager;
+    
+    @Override
+    public void onEnable() {
+        // Initialize components
+    }
+    
+    @Override
+    public void onDisable() {
+        // Cleanup resources
+    }
+}
+```
+
+2. Implement configuration system:
+   - Create config.yml with default settings
+   - Add configuration manager for loading/saving settings
+   - Include validation and migration logic
+
+3. Add command registration system:
+   - Register main plugin commands (/ai, /companion, etc.)
+   - Implement command handlers and permission checks
+   - Add tab completion support
+
+4. Create player interaction tracking:
+   - Monitor player movements and actions
+   - Track player-bot interactions
+   - Implement proximity detection
+
+5. Add event listeners for relevant Bukkit events
+6. Implement plugin metrics and telemetry (optional)
+7. Create service manager for dependency injection pattern
+
+# Test Strategy:
+1. Test plugin loading/unloading in Spigot/Paper server
+2. Verify configuration loading and saving
+3. Test command registration and execution
+4. Validate event listeners are properly registered
+5. Check permission handling for commands
+6. Test player tracking accuracy
+7. Verify resource cleanup on plugin disable
