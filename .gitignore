@@ -23,3 +23,6 @@ node_modules/
 
 # OS specific
 .DS_Store
+
+# YoYo AI version control directory
+.yoyo/
