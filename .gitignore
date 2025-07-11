@@ -26,3 +26,7 @@ node_modules/
 
 # YoYo AI version control directory
 .yoyo/
+
+# Task files
+# tasks.json
+# tasks/ 

@@ -16,8 +16,8 @@
             "title": "Initialize Java Plugin Project Structure",
             "description": "Set up the 'minecraft-ai-brain' Java plugin directory with Gradle configuration, proper package structure, and required dependencies.",
             "dependencies": [],
-            "details": "Create the 'minecraft-ai-brain' directory with Gradle 8.x build files (build.gradle, settings.gradle). Configure Java 17+ compatibility, add Spigot/Paper API 1.20.4, Gson 2.10.1, and Java-WebSocket 1.5.3 dependencies. Create src/main/java directory structure with appropriate packages. Create plugin.yml with name, version, main class, and API version.",
-            "status": "pending",
+            "details": "Create the 'minecraft-ai-brain' directory with Gradle 8.x build files (build.gradle, settings.gradle). Configure Java 17+ compatibility, add Spigot/Paper API 1.20.4, Gson 2.10.1, and Java-WebSocket 1.5.3 dependencies. Create src/main/java directory structure with appropriate packages. Create plugin.yml with name, version, main class, and API version.\n<info added on 2025-07-11T07:02:57.977Z>\n작업 시작됨. 하이브리드 아키텍처로 프로젝트 재구성 진행 중.\n\n**진행 상황:**\n- 기존 프로젝트 구조를 하이브리드 아키텍처로 전환하기 위한 분석 완료\n- WebSocket 통신 기반의 Node.js-Java 연동 구조 설계\n- 확장 가능한 패키지 구조 설계: \n  - com.minecraft.ai.brain (메인 패키지)\n  - com.minecraft.ai.brain.websocket (WebSocket 통신)\n  - com.minecraft.ai.brain.handlers (이벤트 핸들러)\n  - com.minecraft.ai.brain.utils (유틸리티)\n\n**다음 단계:**\n- Gradle 빌드 스크립트 작성\n- WebSocket 서버 초기화 코드 준비\n- Node.js 봇과의 통신 프로토콜 정의\n</info added on 2025-07-11T07:02:57.977Z>\n<info added on 2025-07-11T07:12:11.680Z>\n**작업 완료: 2025-01-11**\n\nJava Plugin 프로젝트 구조가 성공적으로 초기화되었습니다.\n\n**구현 완료 사항:**\n- Gradle 8.5 빌드 시스템 구성 (build.gradle, settings.gradle, gradle-wrapper 포함)\n- Java 17+ 호환성 설정 완료\n- 의존성 업데이트: Spigot API 1.20.4, Gson 2.10.1, Java-WebSocket 1.5.4 (최신 버전)\n- 전체 패키지 구조 구현:\n  - com.minecraft.ai.brain (메인 패키지 - MinecraftAIBrainPlugin 클래스)\n  - com.minecraft.ai.brain.websocket (WebSocket 서버 및 메시지 핸들러)\n  - com.minecraft.ai.brain.handlers (이벤트 핸들러 - 플레이어, 채팅, 월드 이벤트)\n  - com.minecraft.ai.brain.utils (유틸리티 - 설정 관리자, 로거)\n- plugin.yml 완성 (4개 명령어 및 권한 시스템 포함)\n- 모든 클래스 파일 생성 완료 (컴파일 가능 상태)\n\n**추가된 기능:**\n- 명령어 시스템: /ai (메인), /ai-config (설정), /ai-voice (음성), /ai-debug (디버그)\n- 권한 기반 접근 제어 시스템\n- 설정 파일 관리 시스템 준비\n- WebSocket 통신을 위한 기본 구조 구축\n\n프로젝트는 이제 Node.js 봇과의 통합을 위한 준비가 완료되었으며, 모든 기반 구조가 확장 가능한 형태로 구축되었습니다.\n</info added on 2025-07-11T07:12:11.680Z>",
+            "status": "done",
             "testStrategy": "Verify Gradle build succeeds without errors. Ensure all dependencies resolve correctly. Validate plugin.yml format with a Spigot/Paper validator."
           },
           {
@@ -26,7 +26,7 @@
             "description": "Set up the 'minecraft-ai-body' Node.js project with npm/yarn configuration, TypeScript support, and required Mineflayer dependencies.",
             "dependencies": [],
             "details": "Create the 'minecraft-ai-body' directory. Initialize npm/yarn project with package.json. Configure for Node.js 18+. Add dependencies: mineflayer 4.x, mineflayer-pathfinder, mineflayer-builder, mineflayer-pvp, and ws 8.x. Set up TypeScript configuration with tsconfig.json. Create src directory with initial index.ts file.",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": "Run npm/yarn install to verify dependencies resolve correctly. Ensure TypeScript compilation works without errors."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-10T14:29:16.515Z",
+      "updated": "2025-07-11T07:13:21.997Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },
