@@ -316,7 +316,7 @@ const config: AppConfig = {
     host: process.env.MINECRAFT_HOST || 'localhost',
     port: parseInt(process.env.MINECRAFT_PORT || '25565'),
     username: process.env.BOT_USERNAME || 'AICompanion',
-            version: process.env.MINECRAFT_VERSION || '1.21.5',
+            version: process.env.MINECRAFT_VERSION || '1.21.4',
     auth: (process.env.MINECRAFT_AUTH as 'microsoft' | 'mojang' | 'offline') || 'offline'
   },
   websocket: {

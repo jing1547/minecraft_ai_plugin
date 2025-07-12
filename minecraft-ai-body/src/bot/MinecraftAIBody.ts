@@ -183,7 +183,7 @@ export class MinecraftAIBody extends EventEmitter {
             port: options.port || 25565,
             username: options.username || 'AIBot',
             auth: options.auth || 'offline',
-            version: options.version || '1.21.5',
+            version: options.version || '1.21.4',
             viewDistance: options.viewDistance || 'tiny',
             difficulty: options.difficulty || 2,
             maxRetries: options.maxRetries || 5,

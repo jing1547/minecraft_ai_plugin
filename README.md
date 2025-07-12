@@ -50,12 +50,12 @@ graph TB
 ### System Requirements
 - **Java**: 17 or higher
 - **Node.js**: 18 or higher
-- **Minecraft Server**: 1.21.5+ (Spigot/Paper)
+- **Minecraft Server**: 1.21.4+ (Spigot/Paper)
 - **Memory**: At least 2GB RAM recommended
 - **Network**: Open port for WebSocket communication (default: 8765)
 
 ### Dependencies
-- Spigot/Paper API 1.21.5
+- Spigot/Paper API 1.21.4
 - Mineflayer 4.x with plugins
 - WebSocket libraries (Java-WebSocket, ws)
 

@@ -81,7 +81,7 @@
 ## 기술적 요구사항
 
 ### Java Plugin 기술 스택
-- **플랫폼**: Minecraft Spigot/Paper 1.21.5+
+- **플랫폼**: Minecraft Spigot/Paper 1.21.4+
 - **언어**: Java 21+
 - **AI API**: OpenAI GPT-4 또는 Claude
 - **음성 처리**: Google Cloud Speech-to-Text/TTS

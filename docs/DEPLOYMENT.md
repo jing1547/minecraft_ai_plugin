@@ -74,7 +74,7 @@ graph TB
 #### Minecraft Server
 - **OS**: Linux (Ubuntu 20.04+ recommended) or Windows Server
 - **Java**: OpenJDK 17+ or Oracle JDK 17+
-- **Server Software**: Paper 1.21.5+ (recommended) or Spigot 1.21.5+
+- **Server Software**: Paper 1.21.4+ (recommended) or Spigot 1.21.4+
 
 #### AI Body Service
 - **OS**: Linux (Ubuntu 20.04+ recommended)
@@ -233,7 +233,7 @@ sudo -u minecraft bash
 cd /opt/minecraft
 
 # Download Paper server
-wget https://api.papermc.io/v2/projects/paper/versions/1.21.5/builds/latest/downloads/paper-1.21.5-latest.jar -O paper.jar
+wget https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/latest/downloads/paper-1.21.4-latest.jar -O paper.jar
 
 # Create start script
 cat > start.sh << 'EOF'
