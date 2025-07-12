@@ -6,6 +6,12 @@ dependencyResolutionManagement {
     repositories {
         mavenCentral()
         
+        // PaperMC repository for Paper API
+        maven {
+            name = 'papermc-repo'
+            url = 'https://repo.papermc.io/repository/maven-public/'
+        }
+        
         // Spigot/Paper repositories
         maven {
             name = 'spigotmc-repo'

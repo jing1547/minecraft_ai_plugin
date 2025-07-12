@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'com.gradleup.shadow' version '8.3.8'
 }
 
 group = 'com.minecraft.ai'
@@ -9,15 +9,17 @@ description = 'Minecraft AI Brain - Java Plugin Component'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 // Repositories are now defined in settings.gradle
 
 dependencies {
-    // Spigot/Paper API
-    compileOnly 'org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT'
+    // Paper API - Latest stable version that supports Java 21
+    compileOnly 'io.papermc.paper:paper-api:1.20.6-R0.1-SNAPSHOT'
     
     // JSON processing
     implementation 'com.google.code.gson:gson:2.10.1'
@@ -38,6 +40,7 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    jvmArgs(['--enable-preview'])
 }
 
 shadowJar {
@@ -46,6 +49,16 @@ shadowJar {
     relocate 'org.java_websocket', 'com.minecraft.ai.brain.libs.websocket'
     relocate 'ch.qos.logback', 'com.minecraft.ai.brain.libs.logback'
     relocate 'org.slf4j', 'com.minecraft.ai.brain.libs.slf4j'
+    
+    manifest {
+        attributes(
+            'Built-By': System.getProperty('user.name'),
+            'Build-Timestamp': new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date()),
+            'Created-By': "Gradle ${gradle.gradleVersion}",
+            'Build-Jdk': "${System.getProperty('java.version')} (${System.getProperty('java.vendor')} ${System.getProperty('java.vm.version')})",
+            'Build-OS': "${System.getProperty('os.name')} ${System.getProperty('os.arch')} ${System.getProperty('os.version')}"
+        )
+    }
 }
 
 processResources {
@@ -55,8 +68,23 @@ processResources {
     )
 }
 
-compileJava.options.encoding = 'UTF-8'
-compileTestJava.options.encoding = 'UTF-8'
+compileJava {
+    options.encoding = 'UTF-8'
+    options.release = 21
+    options.compilerArgs.addAll([
+        '--enable-preview',
+        '-Xlint:unchecked',
+        '-Xlint:deprecation'
+    ])
+}
+
+compileTestJava {
+    options.encoding = 'UTF-8'
+    options.release = 21
+    options.compilerArgs.addAll([
+        '--enable-preview'
+    ])
+}
 
 jar {
     enabled = false
@@ -64,4 +92,13 @@ jar {
 
 build {
     dependsOn shadowJar
+}
+
+// Task to check Java version
+task checkJavaVersion {
+    doLast {
+        println "Java Version: ${System.getProperty('java.version')}"
+        println "Java Vendor: ${System.getProperty('java.vendor')}"
+        println "Gradle Version: ${gradle.gradleVersion}"
+    }
 } 
