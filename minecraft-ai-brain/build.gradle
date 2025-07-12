@@ -1,6 +1,5 @@
 plugins {
     id 'java'
-    id 'application'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
@@ -14,20 +13,7 @@ java {
     }
 }
 
-repositories {
-    mavenCentral()
-    
-    // Spigot/Paper repositories
-    maven {
-        name = 'spigotmc-repo'
-        url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
-    }
-    
-    maven {
-        name = 'sonatype'
-        url = 'https://oss.sonatype.org/content/groups/public/'
-    }
-}
+// Repositories are now defined in settings.gradle
 
 dependencies {
     // Spigot/Paper API
@@ -63,11 +49,10 @@ shadowJar {
 }
 
 processResources {
-    from(sourceSets.main.resources.srcDirs) {
-        filter { line ->
-            line.replace('${version}', project.version.toString())
-        }
-    }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    expand(
+        'version': project.version.toString()
+    )
 }
 
 compileJava.options.encoding = 'UTF-8'
