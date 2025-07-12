@@ -1,0 +1,163 @@
+# Minecraft AI Brain Plugin Configuration
+# This file contains settings for the AI Brain component of the hybrid architecture
+
+# Plugin Information
+plugin:
+  version: 1.0.0
+  debug-mode: false
+  auto-update-check: true
+
+# WebSocket Server Configuration (Communication with Node.js Mineflayer bot)
+websocket:
+  # Server binding configuration
+  host: "localhost"
+  port: 8080
+  
+  # Connection management
+  max-connections: 100
+  connection-timeout-ms: 60000      # 60 seconds
+  heartbeat-interval-ms: 30000      # 30 seconds
+  
+  # Server behavior
+  auto-start: true
+  reconnect-attempts: 3
+  reconnect-delay-ms: 5000         # 5 seconds
+  
+  # Security
+  allow-origins: ["*"]             # Configure for production
+  require-authentication: false
+  
+  # Logging
+  log-connections: true
+  log-messages: false              # Set to true for debugging
+
+# AI Configuration
+ai:
+  # Default AI behavior
+  enabled: true
+  response-timeout-ms: 30000       # 30 seconds
+  max-conversation-history: 50
+  
+  # Voice processing (if implemented)
+  voice:
+    enabled: false
+    stt-provider: "google"         # speech-to-text provider
+    tts-provider: "google"         # text-to-speech provider
+    voice-activation-threshold: 0.7
+  
+  # Natural language processing
+  nlp:
+    language: "en-US"
+    confidence-threshold: 0.6
+    enable-context-awareness: true
+
+# Player Interaction Settings
+player-interaction:
+  # Tracking configuration
+  track-movements: true
+  track-chat: true
+  track-commands: false
+  
+  # Proximity detection
+  interaction-radius: 10.0         # blocks
+  notification-radius: 5.0         # blocks
+  
+  # Behavior
+  auto-respond: true
+  response-delay-ms: 1000          # 1 second
+  max-responses-per-minute: 10
+
+# Command Configuration
+commands:
+  # Default permissions
+  default-permission-level: "user"
+  
+  # Command aliases
+  enable-aliases: true
+  custom-aliases:
+    ai: ["companion", "aibot", "brain"]
+    ai-config: ["aiconfig", "config-ai"]
+  
+  # Command behavior
+  show-help-on-error: true
+  command-cooldown-ms: 1000        # 1 second
+
+# Data Storage
+storage:
+  # Database configuration (if implemented)
+  type: "yaml"                     # yaml, sqlite, mysql
+  
+  # File storage
+  save-interval-minutes: 5
+  backup-enabled: true
+  max-backups: 10
+  
+  # Data retention
+  keep-logs-days: 7
+  keep-interactions-days: 30
+
+# Performance Settings
+performance:
+  # Threading
+  max-worker-threads: 4
+  task-queue-size: 100
+  
+  # Caching
+  enable-caching: true
+  cache-size: 1000
+  cache-expiry-minutes: 30
+  
+  # Resource limits
+  max-memory-mb: 256
+  gc-threshold-mb: 200
+
+# Logging Configuration
+logging:
+  # Log levels: DEBUG, INFO, WARN, ERROR
+  level: "INFO"
+  
+  # Log destinations
+  console: true
+  file: true
+  file-path: "logs/minecraft-ai-brain.log"
+  
+  # Log formatting
+  include-timestamp: true
+  include-thread-name: true
+  include-logger-name: true
+  
+  # Log rotation
+  max-file-size-mb: 10
+  max-files: 5
+
+# Integration Settings
+integration:
+  # Plugin compatibility
+  worldguard-integration: false
+  vault-integration: false
+  
+  # External services
+  metrics-enabled: true
+  update-checker-enabled: true
+  
+  # API endpoints (if applicable)
+  external-api:
+    enabled: false
+    base-url: ""
+    api-key: ""
+    timeout-ms: 10000
+
+# Development Settings (for debugging)
+development:
+  # Testing features
+  mock-ai-responses: false
+  simulate-delays: false
+  
+  # Debug information
+  verbose-logging: false
+  dump-messages: false
+  profile-performance: false
+  
+  # Safety features
+  safe-mode: false
+  disable-external-connections: false 
