@@ -96,7 +96,7 @@
             "description": "Create the WebSocket server implementation in Java that handles connections, message dispatching, and client tracking.",
             "dependencies": [],
             "details": "1. Add Java-WebSocket library dependency to the project\n2. Create WebSocketServer class extending org.java_websocket.server.WebSocketServer\n3. Implement onOpen, onClose, onMessage, and onError methods\n4. Create ConnectionManager class to track active client connections\n5. Implement message dispatcher system that routes incoming messages to appropriate handlers\n6. Add heartbeat mechanism that sends ping messages every 30 seconds\n7. Create configuration system for server parameters (port, host, etc.)\n8. Implement logging using the Minecraft server's logger",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Create mock WebSocket clients to test connection handling. Verify that the server correctly tracks connections, dispatches messages, and handles disconnections."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-12T07:26:10.094Z",
+      "updated": "2025-07-12T07:36:14.315Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },
