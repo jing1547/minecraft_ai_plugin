@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Movement Command Parameters",
+  "description": "Parameter schemas for movement-related commands",
+  "definitions": {
+    "moveTo": {
+      "type": "object",
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": {
+          "type": "number",
+          "description": "X coordinate"
+        },
+        "y": {
+          "type": "number",
+          "description": "Y coordinate"
+        },
+        "z": {
+          "type": "number",
+          "description": "Z coordinate"
+        },
+        "sprint": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to sprint while moving"
+        },
+        "allowParkour": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow parkour movements (jumping, climbing)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "follow": {
+      "type": "object",
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "type": "string",
+          "description": "Target to follow (player name or entity ID)"
+        },
+        "distance": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 3,
+          "description": "Distance to maintain from target"
+        },
+        "continuous": {
+          "type": "boolean",
+          "default": true,
+          "description": "Continue following until stopped"
+        }
+      },
+      "additionalProperties": false
+    },
+    "stop": {
+      "type": "object",
+      "properties": {
+        "immediate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Stop immediately or complete current path"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+} 

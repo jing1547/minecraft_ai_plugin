@@ -1,0 +1,212 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run weekly security scan on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+        
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+      with:
+        languages: java, javascript
+        
+  dependency-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Dependency Review
+      uses: actions/dependency-review-action@v3
+      with:
+        fail-on-severity: moderate
+        
+  license-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        
+    - name: Install license checker
+      run: npm install -g license-checker
+      
+    - name: Check Java dependencies licenses
+      run: |
+        cd minecraft-ai-brain
+        ./gradlew generateLicenseReport --no-daemon
+      continue-on-error: true
+      
+    - name: Check Node.js dependencies licenses
+      run: |
+        cd minecraft-ai-body
+        npm ci
+        license-checker --summary --onlyAllow 'MIT;Apache-2.0;BSD-2-Clause;BSD-3-Clause;ISC;CC0-1.0;Unlicense'
+      continue-on-error: true
+      
+    - name: Upload license reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: license-reports
+        path: |
+          minecraft-ai-brain/build/reports/license/
+          minecraft-ai-body/license-report.json
+          
+  code-coverage:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: minecraft-ai-body/package-lock.json
+        
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('minecraft-ai-brain/**/*.gradle*') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+          
+    - name: Run Java tests with coverage
+      run: |
+        cd minecraft-ai-brain
+        chmod +x gradlew
+        ./gradlew test jacocoTestReport --no-daemon
+        
+    - name: Run Node.js tests with coverage
+      run: |
+        cd minecraft-ai-body
+        npm ci
+        npm run test:coverage
+        
+    - name: Upload Java coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: minecraft-ai-brain/build/reports/jacoco/test/jacocoTestReport.xml
+        flags: java
+        name: codecov-java
+        fail_ci_if_error: false
+        
+    - name: Upload Node.js coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: minecraft-ai-body/coverage/lcov.info
+        flags: nodejs
+        name: codecov-nodejs
+        fail_ci_if_error: false
+        
+    - name: Comment coverage on PR
+      uses: 5monkeys/cobertura-action@master
+      if: github.event_name == 'pull_request'
+      with:
+        path: |
+          minecraft-ai-brain/build/reports/jacoco/test/jacocoTestReport.xml
+          minecraft-ai-body/coverage/cobertura-coverage.xml
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        minimum_coverage: 70
+        
+  documentation-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Check for README updates
+      run: |
+        if [ -f README.md ]; then
+          echo "README.md exists"
+        else
+          echo "README.md is missing"
+          exit 1
+        fi
+        
+    - name: Check for documentation files
+      run: |
+        for file in docs/ARCHITECTURE.md docs/DEVELOPMENT.md docs/DEPLOYMENT.md; do
+          if [ -f "$file" ]; then
+            echo "$file exists"
+          else
+            echo "$file is missing"
+            exit 1
+          fi
+        done
+        
+    - name: Check for protocol documentation
+      run: |
+        if [ -f protocol/README.md ] && [ -f protocol/docs/protocol-specification.md ]; then
+          echo "Protocol documentation exists"
+        else
+          echo "Protocol documentation is missing"
+          exit 1
+        fi
+        
+    - name: Validate JSON schema files
+      run: |
+        # Install ajv-cli for JSON schema validation
+        npm install -g ajv-cli
+        
+        # Validate all JSON schema files
+        for schema in protocol/schemas/**/*.json; do
+          if [ -f "$schema" ]; then
+            echo "Validating $schema"
+            ajv validate -s "$schema" -d "{}" || echo "Schema $schema has issues"
+          fi
+        done
+        
+    - name: Check for LICENSE file
+      run: |
+        if [ -f LICENSE ]; then
+          echo "LICENSE file exists"
+        else
+          echo "LICENSE file is missing"
+          exit 1
+        fi 

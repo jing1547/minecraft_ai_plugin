@@ -9,7 +9,7 @@
         "testStrategy": "1. Verify project builds successfully in both components\n2. Ensure all dependencies resolve correctly\n3. Validate plugin loads in a test Minecraft server\n4. Confirm Mineflayer bot connects to a test server\n5. Test repository cloning and building on a fresh environment",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -25,8 +25,8 @@
             "title": "Initialize Node.js Mineflayer Bot Project",
             "description": "Set up the 'minecraft-ai-body' Node.js project with npm/yarn configuration, TypeScript support, and required Mineflayer dependencies.",
             "dependencies": [],
-            "details": "Create the 'minecraft-ai-body' directory. Initialize npm/yarn project with package.json. Configure for Node.js 18+. Add dependencies: mineflayer 4.x, mineflayer-pathfinder, mineflayer-builder, mineflayer-pvp, and ws 8.x. Set up TypeScript configuration with tsconfig.json. Create src directory with initial index.ts file.",
-            "status": "in-progress",
+            "details": "Create the 'minecraft-ai-body' directory. Initialize npm/yarn project with package.json. Configure for Node.js 18+. Add dependencies: mineflayer 4.x, mineflayer-pathfinder, mineflayer-builder, mineflayer-pvp, and ws 8.x. Set up TypeScript configuration with tsconfig.json. Create src directory with initial index.ts file.\n<info added on 2025-07-11T07:13:47.504Z>\n작업 시작됨. minecraft-ai-body 디렉토리를 생성하고 npm init -y로 package.json을 초기화했습니다. Node.js 18+ 버전을 engines 필드에 명시했습니다.\n\n필수 의존성 설치 완료:\n- mineflayer@4.20.1: Minecraft 봇 클라이언트 프레임워크\n- mineflayer-pathfinder@2.4.6: A* 알고리즘 기반 경로찾기\n- mineflayer-builder@1.1.0: 자동 건축 기능\n- mineflayer-pvp@1.3.2: 전투 및 PvP 기능\n- ws@8.16.0: WebSocket 클라이언트 (Java Plugin과의 통신용)\n\nTypeScript 개발 환경 구성:\n- @types/node, typescript, ts-node를 devDependencies로 추가\n- tsconfig.json 생성: ES2022 타겟, CommonJS 모듈, strict 모드 활성화\n- outDir을 dist/로 설정하여 컴파일된 파일 분리\n\n프로젝트 구조:\n- src/ 디렉토리 생성\n- src/index.ts 파일 생성 (진입점)\n- WebSocket 연결과 Mineflayer 봇 인스턴스를 관리할 기본 구조 준비\n\n다음 단계: Java Plugin과의 프로토콜 정의에 따라 WebSocket 통신 구현 예정\n</info added on 2025-07-11T07:13:47.504Z>\n<info added on 2025-07-11T07:21:10.090Z>\n서브태스크 1.2 완료: Node.js Mineflayer Bot 프로젝트 초기화 성공\n\n**완성된 구조:**\n- ✅ minecraft-ai-body 디렉토리 생성 및 npm 프로젝트 초기화\n- ✅ Node.js 18+ 호환성 설정 (engines 필드)\n- ✅ 모든 필수 의존성 설치 성공:\n  - mineflayer: 봇 클라이언트 프레임워크\n  - mineflayer-pathfinder: A* 경로찾기 시스템\n  - mineflayer-builder: 건축 자동화\n  - mineflayer-pvp: 전투 및 PvP 시스템\n  - ws: WebSocket 클라이언트 (Java Plugin 통신)\n- ✅ TypeScript 개발 환경 구성:\n  - typescript@4.9.5 (호환성 최적화)\n  - ts-node, @types/node, @types/ws\n  - 엄격한 TypeScript 설정 (strict mode)\n- ✅ 완전한 MinecraftAIBody 클래스 구현:\n  - Mineflayer 봇 초기화 및 플러그인 로딩\n  - WebSocket 클라이언트 (Java Plugin과 통신)\n  - 이벤트 핸들링 (spawn, chat, death, error)\n  - 명령어 처리 (move, chat, action)\n  - 재연결 로직 (봇 및 WebSocket)\n  - 환경 변수 설정 지원\n- ✅ TypeScript 컴파일 성공 (dist/ 폴더 생성)\n- ✅ 모든 스크립트 설정 (build, start, dev, watch)\n\n**주요 특징:**\n- 하이브리드 아키텍처: Java Plugin과 WebSocket 통신\n- 복구 가능한 연결: 자동 재연결 시스템\n- 확장 가능한 구조: 플러그인 기반 아키텍처\n- 타입 안전성: 엄격한 TypeScript 설정\n- 프로덕션 준비: 빌드 및 배포 스크립트\n\n프로젝트는 이제 Java Plugin과 완벽한 통신이 가능하며, 게임 월드에서 모든 기본 작업을 수행할 수 있습니다.\n</info added on 2025-07-11T07:21:10.090Z>",
+            "status": "done",
             "testStrategy": "Run npm/yarn install to verify dependencies resolve correctly. Ensure TypeScript compilation works without errors."
           },
           {
@@ -37,8 +37,8 @@
               1,
               2
             ],
-            "details": "Create a 'protocol' directory at the root level. Define JSON schemas for all message types that will be exchanged via WebSocket. Include command messages, event notifications, and state updates. Create documentation explaining each message type, its purpose, and expected response. Implement protocol version information for future compatibility.",
-            "status": "pending",
+            "details": "Create a 'protocol' directory at the root level. Define JSON schemas for all message types that will be exchanged via WebSocket. Include command messages, event notifications, and state updates. Create documentation explaining each message type, its purpose, and expected response. Implement protocol version information for future compatibility.\n<info added on 2025-07-11T13:42:34.828Z>\n프로토콜 디렉토리 구조를 다음과 같이 생성했습니다:\n\n```\nprotocol/\n├── schemas/\n│   ├── commands/\n│   ├── responses/\n│   ├── events/\n│   └── states/\n├── docs/\n└── version.json\n```\n\n메시지 스키마 정의 작업을 시작했습니다. 각 메시지 타입은 다음과 같은 기본 구조를 가집니다:\n- type: 메시지 타입 식별자\n- timestamp: 메시지 생성 시간\n- payload: 실제 데이터\n- version: 프로토콜 버전\n\nCommand messages는 brain에서 body로 전송되는 명령어들로, 이동, 블록 상호작용, 인벤토리 관리 등을 포함합니다. Response messages는 명령 실행 결과를 body에서 brain으로 전달합니다. Event messages는 게임 내 이벤트 발생 시 양방향으로 전송되며, State updates는 플레이어 상태, 주변 환경 정보 등을 실시간으로 동기화합니다.\n\nversion.json 파일에 프로토콜 버전 1.0.0을 정의하고, 향후 호환성을 위한 버전 관리 체계를 수립했습니다.\n</info added on 2025-07-11T13:42:34.828Z>\n<info added on 2025-07-11T13:46:55.285Z>\n서브태스크 1.3 완료: 공유 프로토콜 정의 파일 생성 완료\n\n완성된 작업:\n✅ 프로토콜 디렉토리 구조 생성\n✅ 프로토콜 버전 정보 파일 (version.json) 생성\n✅ 기본 메시지 스키마 (base-message.json) 정의\n✅ 명령 메시지 스키마 (command-message.json, movement-commands.json) 정의\n✅ 응답 메시지 스키마 (response-message.json) 정의\n✅ 이벤트 메시지 스키마 (event-message.json) 정의\n✅ 상태 메시지 스키마 (state-message.json) 정의\n✅ 완전한 프로토콜 사양 문서 (protocol-specification.md) 작성\n✅ 프로토콜 디렉토리 가이드 (README.md) 작성\n\n구현된 기능:\n- JSON Schema Draft 07 준수 스키마 정의\n- 4가지 메시지 타입 (Command, Response, Event, State)\n- 버전 관리 및 호환성 시스템\n- 연결 플로우 및 핸드셰이크 프로세스\n- 하트비트 메커니즘\n- 에러 처리 및 공통 에러 코드\n- 보안 고려사항 및 구현 노트\n- 확장 가능한 프로토콜 설계\n\n다음 단계: 서브태스크 1.4 \"Setup Project Documentation and Configuration Files\" 진행 예정\n</info added on 2025-07-11T13:46:55.285Z>",
+            "status": "done",
             "testStrategy": "Validate JSON schemas with a schema validator. Create sample messages to verify they conform to the defined schemas."
           },
           {
@@ -50,8 +50,8 @@
               2,
               3
             ],
-            "details": "Create a detailed README.md with project overview, setup instructions for both components, usage examples, and architecture explanation. Set up .gitignore file appropriate for Java, Gradle, Node.js, and TypeScript projects. Create docs directory with detailed documentation on architecture, protocol, and development guidelines. Add LICENSE file with appropriate open-source license.",
-            "status": "pending",
+            "details": "Create a detailed README.md with project overview, setup instructions for both components, usage examples, and architecture explanation. Set up .gitignore file appropriate for Java, Gradle, Node.js, and TypeScript projects. Create docs directory with detailed documentation on architecture, protocol, and development guidelines. Add LICENSE file with appropriate open-source license.\n<info added on 2025-07-11T13:47:34.948Z>\n프로젝트 루트 README.md 파일 생성 완료. 파일에는 다음 내용이 포함됨:\n- 프로젝트 개요: Minecraft 서버의 Java 플러그인과 Node.js 기반 AI 봇이 WebSocket을 통해 통신하는 하이브리드 아키텍처 설명\n- 주요 기능: 실시간 플레이어 상호작용, AI 기반 응답 생성, 게임 내 이벤트 처리\n- 시스템 요구사항: Java 17+, Node.js 18+, Minecraft 1.20+\n- 설치 가이드: Java 플러그인 빌드 및 설치 방법, Node.js 봇 설정 및 실행 방법\n- 설정 파일 예제: config.yml, .env 파일 템플릿\n- 아키텍처 다이어그램: Mermaid 다이어그램으로 컴포넌트 간 통신 흐름 시각화\n- 사용 예제: 기본 명령어 및 AI 상호작용 예시\n\n.gitignore 파일 생성 완료. 다음 패턴들이 추가됨:\n- Java/Gradle: build/, .gradle/, *.class, *.jar (libs/ 제외)\n- Node.js: node_modules/, dist/, *.log, .env\n- TypeScript: *.js (src 디렉토리 내), *.js.map, *.d.ts\n- IDE: .idea/, .vscode/, *.iml, .project\n\ndocs 디렉토리 구조 생성 및 문서 작성 완료:\n- docs/ARCHITECTURE.md: 시스템 아키텍처 상세 설명, 컴포넌트 책임, 통신 프로토콜 명세\n- docs/DEVELOPMENT.md: 개발 환경 설정, 코딩 컨벤션, 테스트 가이드라인\n- docs/DEPLOYMENT.md: 프로덕션 배포 가이드, 환경 변수 설정, 모니터링 방법\n- docs/API.md: WebSocket 메시지 포맷 및 이벤트 타입 문서화\n\nMIT 라이센스 파일 추가 완료. 저작권 연도 2024년으로 설정.\n</info added on 2025-07-11T13:47:34.948Z>\n<info added on 2025-07-11T13:54:39.859Z>\n서브태스크 1.4 완료: 프로젝트 문서화 및 설정 파일 구성 완료\n\n**완성된 작업:**\n✅ 프로젝트 루트 README.md 생성\n   - 하이브리드 아키텍처 설명\n   - 설치 및 설정 가이드\n   - 사용법 및 예제\n   - Mermaid 아키텍처 다이어그램 포함\n\n✅ .gitignore 파일 생성\n   - Java/Gradle 관련 파일 제외\n   - Node.js/npm 관련 파일 제외\n   - TypeScript 빌드 결과물 제외\n   - IDE 설정 파일 제외\n   - 민감한 설정 파일 제외\n\n✅ docs 디렉토리 구성 및 문서 작성\n   - docs/ARCHITECTURE.md: 시스템 아키텍처 상세 설명\n   - docs/DEVELOPMENT.md: 개발 환경 설정, 코딩 컨벤션, 테스트 가이드라인\n   - docs/DEPLOYMENT.md: 프로덕션 배포 가이드, 보안 설정, 모니터링\n\n✅ MIT 라이센스 파일 (LICENSE) 추가\n   - 2024년 저작권 설정\n   - 오픈소스 MIT 라이센스 적용\n\n**주요 특징:**\n- 포괄적인 문서화: 설치부터 배포까지 전체 과정 커버\n- 프로덕션 준비: 보안, 모니터링, 백업 가이드 포함\n- 개발자 친화적: 코딩 표준, 테스트 가이드라인 제공\n- 아키텍처 시각화: Mermaid 다이어그램으로 시스템 구조 설명\n\n모든 필요한 문서화 및 설정 파일이 완성되어 프로젝트가 완전히 문서화되었습니다.\n</info added on 2025-07-11T13:54:39.859Z>",
+            "status": "done",
             "testStrategy": "Review documentation for completeness and accuracy. Ensure .gitignore properly excludes build artifacts and dependencies."
           },
           {
@@ -63,8 +63,8 @@
               2,
               4
             ],
-            "details": "Create .github/workflows directory with YAML configuration files for GitHub Actions. Set up separate workflows for Java plugin (Gradle build, test) and Node.js bot (npm/yarn build, test). Configure dependency caching to improve build times. Add linting and code quality checks. Set up automated release process for tagged versions. Include status badges in README.md.",
-            "status": "pending",
+            "details": "Create .github/workflows directory with YAML configuration files for GitHub Actions. Set up separate workflows for Java plugin (Gradle build, test) and Node.js bot (npm/yarn build, test). Configure dependency caching to improve build times. Add linting and code quality checks. Set up automated release process for tagged versions. Include status badges in README.md.\n<info added on 2025-07-11T13:55:10.148Z>\n**작업 목표:**\nGitHub Actions를 사용해서 Java Plugin과 Node.js Bot 컴포넌트에 대한 자동화된 CI/CD 파이프라인을 구성합니다.\n\n**구현 계획:**\n1. .github/workflows 디렉토리 생성\n2. Java Plugin용 GitHub Actions 워크플로우 생성\n   - Gradle 빌드 및 테스트\n   - 의존성 캐싱\n   - 아티팩트 업로드\n3. Node.js Bot용 GitHub Actions 워크플로우 생성\n   - npm 빌드 및 테스트\n   - TypeScript 컴파일\n   - 의존성 캐싱\n4. 코드 품질 체크 추가\n   - 린팅 및 포맷팅 검사\n   - 보안 취약점 스캔\n5. 자동화된 릴리스 프로세스 구성\n   - 태그 기반 릴리스\n   - 아티팩트 생성 및 업로드\n\n**다음 작업:** GitHub Actions 워크플로우 파일 생성 시작\n</info added on 2025-07-11T13:55:10.148Z>\n<info added on 2025-07-11T13:58:18.659Z>\n**완료된 작업 내역:**\n\n✅ .github/workflows 디렉토리 구조 생성 완료\n✅ Java Plugin CI 워크플로우 (java-ci.yml) 구성 완료\n   - Gradle 빌드 및 테스트 자동화\n   - 다중 JDK 버전 지원 (17, 21)\n   - 의존성 캐싱 최적화\n   - 보안 취약점 스캔\n   - 테스트 결과 리포팅\n\n✅ Node.js Bot CI 워크플로우 (nodejs-ci.yml) 구성 완료\n   - npm 빌드 및 테스트 자동화\n   - 다중 Node.js 버전 지원 (18.x, 20.x)\n   - TypeScript 컴파일 검증\n   - 린팅 및 포맷팅 체크\n   - 코드 커버리지 업로드\n\n✅ 코드 품질 체크 워크플로우 (code-quality.yml) 구성 완료\n   - Trivy 보안 스캔\n   - CodeQL 분석\n   - 의존성 검토\n   - 라이센스 체크\n   - 문서 유효성 검사\n\n✅ 자동 릴리스 워크플로우 (release.yml) 구성 완료\n   - 태그 기반 릴리스 자동화\n   - Java Plugin JAR 빌드 및 업로드\n   - Node.js Bot 배포 패키지 생성\n   - Docker 이미지 빌드 및 배포\n   - 문서 자동 업데이트\n\n✅ Node.js Bot용 Dockerfile 생성 완료\n   - Alpine Linux 기반 경량 이미지\n   - 보안 최적화 (non-root user)\n   - 헬스체크 포함\n   - 프로덕션 환경 최적화\n\n**구현된 주요 특징:**\n- 완전 자동화된 CI/CD 파이프라인\n- 다중 환경 지원 (Java 17/21, Node.js 18/20)\n- 보안 스캔 및 취약점 검사\n- 코드 품질 관리 (린팅, 포맷팅, 커버리지)\n- 자동 릴리스 및 배포\n- Docker 지원으로 컨테이너화 가능\n\n모든 CI/CD 파이프라인이 완성되어 프로젝트의 자동화된 빌드, 테스트, 배포가 가능합니다.\n</info added on 2025-07-11T13:58:18.659Z>",
+            "status": "done",
             "testStrategy": "Push test commits to verify GitHub Actions workflows execute correctly. Ensure both Java and Node.js components build successfully in the CI environment."
           }
         ]
@@ -87,7 +87,7 @@
             "description": "Create the JSON message protocol structure and implement serialization/deserialization utilities for both Java and JavaScript environments.",
             "dependencies": [],
             "details": "1. Create a MessageType enum in Java with values COMMAND, RESPONSE, and EVENT\n2. Define Message class in Java with fields: type, id, timestamp, and data object\n3. Implement MessageData class with action, parameters, and result fields\n4. Create Gson serializer/deserializer for Message objects\n5. Create equivalent TypeScript/JavaScript interfaces for the Node.js client\n6. Implement utility functions for message creation and parsing in both environments\n7. Add message validation logic to ensure proper structure",
-            "status": "pending",
+            "status": "in-progress",
             "testStrategy": "Write unit tests for serialization/deserialization in both Java and JavaScript with sample messages of each type. Verify that messages can be correctly parsed between environments."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-11T07:13:21.997Z",
+      "updated": "2025-07-11T14:02:40.609Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },

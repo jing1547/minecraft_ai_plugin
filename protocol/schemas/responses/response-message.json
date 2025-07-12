@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Response Message Schema",
+  "description": "Schema for response messages sent from Body to Brain",
+  "allOf": [
+    {
+      "$ref": "../base-message.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "response"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["success", "commandId"],
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "description": "Whether the command was executed successfully"
+            },
+            "commandId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+              "description": "ID of the command this response is for"
+            },
+            "action": {
+              "type": "string",
+              "description": "The action that was performed"
+            },
+            "result": {
+              "type": "object",
+              "description": "Result data from command execution"
+            },
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "description": "Error code identifier"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message"
+                },
+                "details": {
+                  "type": "object",
+                  "description": "Additional error details"
+                }
+              },
+              "required": ["code", "message"],
+              "description": "Error information (only present if success is false)"
+            },
+            "duration": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Command execution duration in milliseconds"
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Additional metadata about the command execution"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+} 

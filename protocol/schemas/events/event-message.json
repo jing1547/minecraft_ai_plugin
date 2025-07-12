@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Event Message Schema",
+  "description": "Schema for event messages sent between Brain and Body",
+  "allOf": [
+    {
+      "$ref": "../base-message.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "event"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["eventType", "source", "data"],
+          "properties": {
+            "eventType": {
+              "type": "string",
+              "enum": [
+                "playerJoined",
+                "playerLeft",
+                "entitySpawned",
+                "entityDespawned",
+                "blockChanged",
+                "damageReceived",
+                "healthChanged",
+                "inventoryChanged",
+                "connectionLost",
+                "connectionRestored",
+                "chatMessage",
+                "death",
+                "respawn",
+                "dimensionChanged",
+                "weatherChanged",
+                "timeChanged"
+              ],
+              "description": "The type of event that occurred"
+            },
+            "source": {
+              "type": "string",
+              "enum": ["brain", "body"],
+              "description": "The source component that generated this event"
+            },
+            "data": {
+              "type": "object",
+              "description": "Event-specific data (schema varies by event type)"
+            },
+            "location": {
+              "type": "object",
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "z": { "type": "number" },
+                "dimension": { "type": "string" }
+              },
+              "description": "Location where the event occurred (if applicable)"
+            },
+            "severity": {
+              "type": "string",
+              "enum": ["info", "warning", "error", "critical"],
+              "default": "info",
+              "description": "Event severity level"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+} 

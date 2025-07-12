@@ -1,0 +1,22 @@
+{
+  "version": "1.0.0",
+  "name": "minecraft-ai-protocol",
+  "description": "Communication protocol between Minecraft AI Brain (Java Plugin) and Body (Node.js Bot)",
+  "compatibility": {
+    "minVersion": "1.0.0",
+    "maxVersion": "1.9.9"
+  },
+  "created": "2025-01-11",
+  "maintainer": "Minecraft AI Project",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2025-01-11",
+      "changes": [
+        "Initial protocol definition",
+        "Basic message types: command, response, event, state",
+        "Core communication schema established"
+      ]
+    }
+  ]
+} 

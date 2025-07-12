@@ -1,0 +1,141 @@
+name: Node.js Bot CI
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'minecraft-ai-body/**'
+      - '.github/workflows/nodejs-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'minecraft-ai-body/**'
+      - '.github/workflows/nodejs-ci.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: minecraft-ai-body/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd minecraft-ai-body
+        npm ci
+        
+    - name: Run linting
+      run: |
+        cd minecraft-ai-body
+        npm run lint
+      continue-on-error: true
+      
+    - name: Run type checking
+      run: |
+        cd minecraft-ai-body
+        npm run type-check
+        
+    - name: Build TypeScript
+      run: |
+        cd minecraft-ai-body
+        npm run build
+        
+    - name: Run tests
+      run: |
+        cd minecraft-ai-body
+        npm test
+        
+    - name: Generate test coverage
+      run: |
+        cd minecraft-ai-body
+        npm run test:coverage
+      continue-on-error: true
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: minecraft-ai-body/coverage/lcov.info
+        flags: nodejs
+        name: codecov-nodejs-${{ matrix.node-version }}
+        fail_ci_if_error: false
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-nodejs-${{ matrix.node-version }}
+        path: minecraft-ai-body/test-results/
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      if: success()
+      with:
+        name: bot-build-${{ matrix.node-version }}
+        path: minecraft-ai-body/dist/
+        
+    - name: Check for security vulnerabilities
+      run: |
+        cd minecraft-ai-body
+        npm audit --audit-level=moderate
+      continue-on-error: true
+      
+    - name: Run security scan
+      run: |
+        cd minecraft-ai-body
+        npx snyk test --severity-threshold=high
+      continue-on-error: true
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        
+    - name: Upload security report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: security-report-nodejs-${{ matrix.node-version }}
+        path: minecraft-ai-body/security-report.json
+        
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: minecraft-ai-body/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd minecraft-ai-body
+        npm ci
+        
+    - name: Run ESLint
+      run: |
+        cd minecraft-ai-body
+        npm run lint:check
+        
+    - name: Run Prettier
+      run: |
+        cd minecraft-ai-body
+        npm run format:check
+        
+    - name: Run TypeScript compiler
+      run: |
+        cd minecraft-ai-body
+        npm run type-check 

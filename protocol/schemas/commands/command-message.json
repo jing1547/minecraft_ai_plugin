@@ -1,0 +1,56 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Command Message Schema",
+  "description": "Schema for command messages sent from Brain to Body",
+  "allOf": [
+    {
+      "$ref": "../base-message.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "command"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["action", "parameters"],
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "moveTo",
+                "follow",
+                "stop",
+                "attack",
+                "use",
+                "break",
+                "place",
+                "equipItem",
+                "craftItem",
+                "dropItem",
+                "chat",
+                "whisper",
+                "disconnect",
+                "status",
+                "debug"
+              ],
+              "description": "The action to perform"
+            },
+            "parameters": {
+              "type": "object",
+              "description": "Parameters for the action (schema varies by action)"
+            },
+            "timeout": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 60000,
+              "default": 10000,
+              "description": "Timeout in milliseconds for command execution"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+} 

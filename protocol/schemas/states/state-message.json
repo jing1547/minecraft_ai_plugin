@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "State Message Schema",
+  "description": "Schema for state synchronization messages sent between Brain and Body",
+  "allOf": [
+    {
+      "$ref": "../base-message.json"
+    },
+    {
+      "properties": {
+        "type": {
+          "const": "state"
+        },
+        "payload": {
+          "type": "object",
+          "required": ["stateType", "data"],
+          "properties": {
+            "stateType": {
+              "type": "string",
+              "enum": [
+                "botStatus",
+                "playerStatus",
+                "worldStatus",
+                "connectionStatus",
+                "inventoryStatus",
+                "healthStatus",
+                "locationStatus",
+                "targetStatus"
+              ],
+              "description": "The type of state being synchronized"
+            },
+            "data": {
+              "type": "object",
+              "description": "State-specific data (schema varies by state type)"
+            },
+            "partial": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether this is a partial state update"
+            },
+            "sequenceNumber": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Sequence number for state ordering"
+            },
+            "lastUpdated": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When this state was last updated"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+} 

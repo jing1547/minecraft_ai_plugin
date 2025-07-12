@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Base Message Schema",
+  "description": "Base schema for all messages exchanged between Brain and Body",
+  "type": "object",
+  "required": ["type", "id", "timestamp", "version", "payload"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["command", "response", "event", "state"],
+      "description": "The type of message being sent"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Unique message identifier (UUID v4)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the message was created"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Protocol version (semantic versioning)"
+    },
+    "correlationId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Optional: ID of the message this is responding to"
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "normal", "high", "urgent"],
+      "default": "normal",
+      "description": "Message priority level"
+    },
+    "payload": {
+      "type": "object",
+      "description": "The actual message content (schema varies by message type)"
+    }
+  },
+  "additionalProperties": false
+} 
