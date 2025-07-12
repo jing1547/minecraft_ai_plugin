@@ -174,8 +174,8 @@
             "title": "Create WebSocket Command Handler System",
             "description": "Implement a system to receive, parse, and execute commands from a WebSocket connection.",
             "dependencies": [],
-            "details": "Add WebSocket client functionality to connect to a control server. Implement a command parser that converts incoming JSON messages to bot actions. Create a command registry system where commands can be registered with their handlers. Implement handlers for movement commands, interaction commands, and information requests. Add a response system to send command execution results back through the WebSocket.",
-            "status": "pending",
+            "details": "Add WebSocket client functionality to connect to a control server. Implement a command parser that converts incoming JSON messages to bot actions. Create a command registry system where commands can be registered with their handlers. Implement handlers for movement commands, interaction commands, and information requests. Add a response system to send command execution results back through the WebSocket.\n<info added on 2025-07-12T13:24:59.666Z>\nWebSocket Command Handler System 구현 완료\n\n구현된 기능:\n1. **WebSocket 클라이언트 연결 기능** - WebSocket 서버에 연결, 재연결, 연결 상태 관리\n2. **명령어 파싱 시스템** - 들어오는 JSON 메시지를 파싱하여 명령어 객체로 변환\n3. **명령어 레지스트리 시스템** - 명령어 타입별 핸들러 등록/해제 기능\n4. **응답 시스템** - 명령어 실행 결과를 WebSocket으로 전송\n\n구현된 명령어 타입:\n- **Movement Commands**: moveTo, moveToEntity, followEntity, stopMoving, stopFollowing\n- **Interaction Commands**: placeBlock, breakBlock, collectItem, useItem, attackEntity, interactWithEntity, equipItem, craftItem\n- **Information Commands**: getStatus, getInventory, getNearbyEntities, getNearbyBlocks, findItemInInventory\n- **System Commands**: ping (테스트용)\n\n주요 구현 사항:\n- MinecraftAIBody 클래스에 WebSocket 관련 속성 추가\n- 자동 재연결 기능 구현\n- 에러 처리 및 응답 시스템\n- 명령어 실행 결과를 JSON 형태로 응답\n- 외부에서 사용할 수 있는 public API 제공\n- 각 명령어에 대한 성공/실패 상태 및 에러 메시지 반환\n\n테스트 방법:\n- WebSocket 서버 설정 후 다양한 명령어 전송\n- 각 명령어의 응답 확인\n- 연결 실패 시 재연결 동작 확인\n</info added on 2025-07-12T13:24:59.666Z>",
+            "status": "done",
             "testStrategy": "Set up a test WebSocket server and send various command types to the bot. Verify each command is properly parsed and executed, and that appropriate responses are sent back."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-12T11:33:59.683Z",
+      "updated": "2025-07-12T13:25:04.595Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },
