@@ -8,16 +8,14 @@ WORKDIR /app
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S minecraft-ai -u 1001
 
-# Install system dependencies
-RUN apk add --no-cache \
-    dumb-init \
-    tini
+# Install system dependencies (only tini for proper signal handling)
+RUN apk add --no-cache tini
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && \
+# Install all dependencies first (needed for build)
+RUN npm ci && \
     npm cache clean --force
 
 # Copy source code
@@ -26,21 +24,22 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+# Remove dev dependencies after build
+RUN npm prune --production
+
 # Create .env.example for reference
-RUN cat > .env.example << 'EOF'
-# Minecraft Server Connection
-MINECRAFT_HOST=localhost
-MINECRAFT_PORT=25565
-MINECRAFT_USERNAME=AICompanion
-
-# WebSocket Configuration
-WEBSOCKET_HOST=localhost
-WEBSOCKET_PORT=8765
-
-# Optional: AI Configuration
-OPENAI_API_KEY=your_openai_api_key_here
-GOOGLE_CLOUD_CREDENTIALS=path/to/credentials.json
-EOF
+RUN echo "# Minecraft Server Connection" > .env.example && \
+    echo "MINECRAFT_HOST=localhost" >> .env.example && \
+    echo "MINECRAFT_PORT=25565" >> .env.example && \
+    echo "MINECRAFT_USERNAME=AICompanion" >> .env.example && \
+    echo "" >> .env.example && \
+    echo "# WebSocket Configuration" >> .env.example && \
+    echo "WEBSOCKET_HOST=localhost" >> .env.example && \
+    echo "WEBSOCKET_PORT=8765" >> .env.example && \
+    echo "" >> .env.example && \
+    echo "# Optional: AI Configuration" >> .env.example && \
+    echo "OPENAI_API_KEY=your_openai_api_key_here" >> .env.example && \
+    echo "GOOGLE_CLOUD_CREDENTIALS=path/to/credentials.json" >> .env.example
 
 # Set proper permissions
 RUN chown -R minecraft-ai:nodejs /app
