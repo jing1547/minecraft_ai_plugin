@@ -113,8 +113,8 @@
             "title": "Implement Message Handling and Routing System",
             "description": "Create the message handling infrastructure that processes incoming messages and routes them to appropriate handlers on both server and client sides.",
             "dependencies": [],
-            "details": "1. Create MessageHandler interface in Java with handleMessage method\n2. Implement specific handlers for different message types and actions\n3. Create MessageRouter class that maps message types/actions to handlers\n4. Add message ID generation and tracking system using UUID\n5. Implement similar handler structure in JavaScript for the client\n6. Create promise-based request-response system for command messages\n7. Add timeout mechanism for pending responses\n8. Implement event subscription system for event messages",
-            "status": "pending",
+            "details": "1. Create MessageHandler interface in Java with handleMessage method\n2. Implement specific handlers for different message types and actions\n3. Create MessageRouter class that maps message types/actions to handlers\n4. Add message ID generation and tracking system using UUID\n5. Implement similar handler structure in JavaScript for the client\n6. Create promise-based request-response system for command messages\n7. Add timeout mechanism for pending responses\n8. Implement event subscription system for event messages\n<info added on 2025-07-12T09:14:41.911Z>\nNode.js 클라이언트 측에서 완전한 메시지 핸들링 및 라우팅 시스템을 구현했습니다.\n\nMessageHandler.ts - 메시지 핸들러 시스템:\n- MessageHandler 인터페이스: 모든 메시지 핸들러의 기본 인터페이스\n- HandlerContext 인터페이스: 핸들러가 사용할 수 있는 컨텍스트 기능 정의\n- AbstractMessageHandler: 공통 기능을 제공하는 추상 기본 클래스\n- CommandMessageHandler: 모든 명령어 처리 (MOVE_TO, FOLLOW, STOP, ATTACK, USE, BREAK, PLACE, EQUIP_ITEM, CRAFT_ITEM, DROP_ITEM, CHAT, WHISPER, DISCONNECT, STATUS, DEBUG)\n- ResponseMessageHandler: 응답 메시지 처리 및 로깅\n- EventMessageHandler: 이벤트 메시지 처리 (player-joined, player-left, chat-message, bot-spawned, bot-died)\n- StateMessageHandler: 상태 메시지 처리 (connection, bot-status, world-info)\n\nMessageRouter.ts - 메시지 라우팅 시스템:\n- Promise 기반 요청-응답 시스템: 명령 전송 시 응답을 Promise로 반환\n- 타임아웃 메커니즘: 대기 중인 요청에 대한 타임아웃 관리 (기본 30초)\n- 이벤트 구독 시스템: 특정 이벤트 타입에 대한 구독/해제 기능\n- 메시지 라우팅: 메시지 타입에 따른 자동 핸들러 매핑\n- 통계 및 모니터링: 메시지 처리 통계, 응답 시간 추적\n- 자동 정리: 만료된 요청 자동 정리 (1분마다)\n- HandlerContext 구현: 핸들러에서 사용할 수 있는 컨텍스트 기능 제공\n\nindex.ts - 통합 네트워크 관리자:\n- NetworkManager 클래스: WebSocket 클라이언트와 메시지 라우터 통합\n- 하트비트 시스템: 연결 상태 확인을 위한 자동 하트비트 (30초 간격)\n- 이벤트 통합: 네트워크 이벤트와 메시지 이벤트 통합 관리\n- 설정 관리: WebSocket 및 라우터 설정 통합 관리\n- 헬스 체크: 전체 시스템 상태 확인\n- 통계 정보: 클라이언트 및 라우터 통계 통합 제공\n\n주요 기능:\n- 메시지 타입별 자동 라우팅: 각 메시지 타입에 맞는 핸들러 자동 선택\n- Promise 기반 명령 처리: 비동기 명령 전송 및 응답 대기\n- 이벤트 구독/해제: 필요한 이벤트만 구독하여 효율적 처리\n- 타임아웃 관리: 응답이 오지 않는 요청 자동 정리\n- 통계 및 모니터링: 메시지 처리 성능 추적\n- 핸들러 확장성: 새로운 핸들러 쉽게 추가 가능\n- 오류 처리: 포괄적인 오류 처리 및 로깅\n- 설정 가능: 다양한 설정 옵션 제공\n\n기술적 특징:\n- TypeScript 타입 안정성: 모든 메시지 타입에 대한 타입 체크\n- 모듈화 설계: 각 컴포넌트 독립적으로 사용 가능\n- 프로덕션 준비: 메모리 누수 방지, 자동 정리, 통계 추적\n- 확장 가능한 구조: 새로운 메시지 타입 및 핸들러 쉽게 추가\n\n통합 테스트 준비:\n모든 컴포넌트가 완성되어 Java WebSocket 서버와 완전한 통신 가능:\n- 명령 전송 및 응답 받기\n- 이벤트 구독 및 처리\n- 상태 메시지 처리\n- 연결 관리 및 재연결\n- 오류 복구 및 로깅\n</info added on 2025-07-12T09:14:41.911Z>",
+            "status": "done",
             "testStrategy": "Test message routing with various message types and verify that they reach the correct handlers. Test timeout mechanism for responses and verify that promises are properly resolved or rejected."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-12T07:42:13.261Z",
+      "updated": "2025-07-12T09:14:47.396Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },
