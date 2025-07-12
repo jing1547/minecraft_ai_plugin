@@ -87,7 +87,7 @@
             "description": "Create the JSON message protocol structure and implement serialization/deserialization utilities for both Java and JavaScript environments.",
             "dependencies": [],
             "details": "1. Create a MessageType enum in Java with values COMMAND, RESPONSE, and EVENT\n2. Define Message class in Java with fields: type, id, timestamp, and data object\n3. Implement MessageData class with action, parameters, and result fields\n4. Create Gson serializer/deserializer for Message objects\n5. Create equivalent TypeScript/JavaScript interfaces for the Node.js client\n6. Implement utility functions for message creation and parsing in both environments\n7. Add message validation logic to ensure proper structure",
-            "status": "in-progress",
+            "status": "done",
             "testStrategy": "Write unit tests for serialization/deserialization in both Java and JavaScript with sample messages of each type. Verify that messages can be correctly parsed between environments."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-11T14:02:40.609Z",
+      "updated": "2025-07-12T07:26:10.094Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },
