@@ -8,7 +8,7 @@
 Create a monorepo structure with two main directories:
 1. `minecraft-ai-brain` (Java Plugin):
    - Use Maven or Gradle (preferably Gradle 8.x) for dependency management
-   - Configure for Java 17+
+   - Configure for Java 21+
    - Add Spigot/Paper API 1.21.5 as dependency
    - Include Gson 2.10.1 for JSON processing
    - Add Java-WebSocket 1.5.3 for WebSocket communication

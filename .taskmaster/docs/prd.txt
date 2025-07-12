@@ -49,7 +49,7 @@
 ### 서버 환경
 - Minecraft 1.19+ 지원
 - Spigot/Paper 서버 플러그인 형태
-- Java 17+ 호환성
+- Java 21+ 호환성
 
 ### AI 및 음성 처리
 - OpenAI GPT API 또는 로컬 LLM 통합

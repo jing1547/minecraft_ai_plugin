@@ -103,7 +103,7 @@ This document provides comprehensive guidelines for developing the Minecraft AI 
 
 2. **Configure SDK**
    - File → Project Structure → Project
-   - Set Project SDK to Java 17+
+   - Set Project SDK to Java 21+
 
 3. **Install Plugins**
    - Minecraft Development for IntelliJ (helpful for Bukkit development)

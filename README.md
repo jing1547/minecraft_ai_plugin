@@ -214,7 +214,7 @@ logging:
 
 1. **Setup Development Environment**:
    ```bash
-   # Install Java 17+
+   # Install Java 21+
    # Install Node.js 18+
    # Install your preferred IDE
    ```
