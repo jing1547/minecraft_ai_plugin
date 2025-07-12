@@ -156,20 +156,26 @@ export class MessageSerializer {
         } = {}
     ): CommandMessage {
         const payload: CommandPayload = {
-            action: typeof action === 'string' ? action : action.valueOf(),
+            action: typeof action === 'string' ? action : String(action),
             parameters,
             timeout: options.timeout || 10000
         };
 
-        return {
+        const message: CommandMessage = {
             type: MessageType.COMMAND,
             id: uuidv4(),
             timestamp: new Date().toISOString(),
             version: this.PROTOCOL_VERSION,
             priority: options.priority || Priority.NORMAL,
-            correlationId: options.correlationId,
             payload
         };
+
+        // Only add correlationId if it's provided
+        if (options.correlationId !== undefined) {
+            message.correlationId = options.correlationId;
+        }
+
+        return message;
     }
 
     /**
@@ -188,10 +194,18 @@ export class MessageSerializer {
     ): ResponseMessage {
         const payload: ResponsePayload = {
             success,
-            result,
-            error,
-            executionTime
+            result
         };
+
+        // Only add error if it's provided
+        if (error !== undefined) {
+            payload.error = error;
+        }
+
+        // Only add executionTime if it's provided
+        if (executionTime !== undefined) {
+            payload.executionTime = executionTime;
+        }
 
         return {
             type: MessageType.RESPONSE,
@@ -214,9 +228,13 @@ export class MessageSerializer {
     ): EventMessage {
         const payload: EventPayload = {
             eventType,
-            data,
-            source
+            data
         };
+
+        // Only add source if it's provided
+        if (source !== undefined) {
+            payload.source = source;
+        }
 
         return {
             type: MessageType.EVENT,
@@ -263,30 +281,54 @@ export class CommandMessageBuilder {
      */
     public static moveTo(x: number, y: number, z: number, timeout?: number): CommandMessage {
         const parameters: MovementParameters = { x, y, z };
-        return MessageSerializer.createCommandMessage(CommandAction.MOVE_TO, parameters, { timeout });
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.MOVE_TO, parameters, options);
     }
 
     /**
      * Create a follow command
      */
     public static follow(playerName: string, distance?: number, timeout?: number): CommandMessage {
-        const parameters: FollowParameters = { playerName, distance };
-        return MessageSerializer.createCommandMessage(CommandAction.FOLLOW, parameters, { timeout });
+        const parameters: FollowParameters = { playerName };
+        if (distance !== undefined) {
+            parameters.distance = distance;
+        }
+        
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.FOLLOW, parameters, options);
     }
 
     /**
      * Create a stop command
      */
     public static stop(timeout?: number): CommandMessage {
-        return MessageSerializer.createCommandMessage(CommandAction.STOP, {}, { timeout });
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.STOP, {}, options);
     }
 
     /**
      * Create a chat command
      */
     public static chat(message: string, target?: string, timeout?: number): CommandMessage {
-        const parameters: ChatParameters = { message, target };
-        return MessageSerializer.createCommandMessage(CommandAction.CHAT, parameters, { timeout });
+        const parameters: ChatParameters = { message };
+        if (target !== undefined) {
+            parameters.target = target;
+        }
+        
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.CHAT, parameters, options);
     }
 
     /**
@@ -294,7 +336,11 @@ export class CommandMessageBuilder {
      */
     public static attack(targetId?: string, timeout?: number): CommandMessage {
         const parameters = targetId ? { targetId } : {};
-        return MessageSerializer.createCommandMessage(CommandAction.ATTACK, parameters, { timeout });
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.ATTACK, parameters, options);
     }
 
     /**
@@ -302,37 +348,65 @@ export class CommandMessageBuilder {
      */
     public static breakBlock(x: number, y: number, z: number, timeout?: number): CommandMessage {
         const parameters: BlockParameters = { x, y, z };
-        return MessageSerializer.createCommandMessage(CommandAction.BREAK, parameters, { timeout });
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.BREAK, parameters, options);
     }
 
     /**
      * Create a place block command
      */
     public static placeBlock(x: number, y: number, z: number, face?: number, timeout?: number): CommandMessage {
-        const parameters: BlockParameters = { x, y, z, face };
-        return MessageSerializer.createCommandMessage(CommandAction.PLACE, parameters, { timeout });
+        const parameters: BlockParameters = { x, y, z };
+        if (face !== undefined) {
+            parameters.face = face;
+        }
+        
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.PLACE, parameters, options);
     }
 
     /**
      * Create an equip item command
      */
     public static equipItem(itemName: string, slot?: number, timeout?: number): CommandMessage {
-        const parameters: ItemParameters = { itemName, slot };
-        return MessageSerializer.createCommandMessage(CommandAction.EQUIP_ITEM, parameters, { timeout });
+        const parameters: ItemParameters = { itemName };
+        if (slot !== undefined) {
+            parameters.slot = slot;
+        }
+        
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.EQUIP_ITEM, parameters, options);
     }
 
     /**
      * Create a disconnect command
      */
     public static disconnect(timeout?: number): CommandMessage {
-        return MessageSerializer.createCommandMessage(CommandAction.DISCONNECT, {}, { timeout });
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.DISCONNECT, {}, options);
     }
 
     /**
      * Create a status command
      */
     public static status(timeout?: number): CommandMessage {
-        return MessageSerializer.createCommandMessage(CommandAction.STATUS, {}, { timeout });
+        const options: { timeout?: number } = {};
+        if (timeout !== undefined) {
+            options.timeout = timeout;
+        }
+        return MessageSerializer.createCommandMessage(CommandAction.STATUS, {}, options);
     }
 }
 
