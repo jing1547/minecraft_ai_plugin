@@ -143,7 +143,13 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
         this.getCommand("ai-voice").setExecutor(commandHandler);
         this.getCommand("ai-debug").setExecutor(commandHandler);
         
-        pluginLogger.info("Commands registered");
+        // Register tab completers
+        this.getCommand("ai").setTabCompleter(commandHandler);
+        this.getCommand("ai-config").setTabCompleter(commandHandler);
+        this.getCommand("ai-voice").setTabCompleter(commandHandler);
+        this.getCommand("ai-debug").setTabCompleter(commandHandler);
+        
+        pluginLogger.info("Commands and tab completers registered");
     }
 
     /**
