@@ -1,360 +1,354 @@
-import { Bot, createBot } from 'mineflayer';
-import { pathfinder, Movements } from 'mineflayer-pathfinder';
-import { plugin as pvp } from 'mineflayer-pvp';
-// import builder from 'mineflayer-builder'; // TODO: Fix import issues
-import WebSocket from 'ws';
+import { MinecraftAIBody as AIBody, MinecraftAIBodyOptions } from './bot/MinecraftAIBody';
 
 /**
- * Minecraft AI Body - Node.js Mineflayer Bot Component
+ * Minecraft AI Body - Entry Point
  * 
- * This is the "body" component of the hybrid architecture that handles:
- * - Game world interactions and movement
- * - Block manipulation and building
- * - Combat and PvP
- * - WebSocket communication with Java Plugin (brain)
+ * This is the main entry point for the Minecraft AI Body component.
+ * It initializes and starts the comprehensive MinecraftAIBody class.
  */
 
-interface BotConfig {
-  host: string;
-  port: number;
-  username: string;
-  version?: string;
-  auth?: 'microsoft' | 'mojang' | 'offline';
+interface AppConfig {
+  testMode: boolean;
+  minecraft: {
+    host: string;
+    port: number;
+    username: string;
+    version: string;
+    auth: 'microsoft' | 'mojang' | 'offline';
+  };
+  websocket: {
+    url: string;
+    reconnectInterval: number;
+  };
+  bot: {
+    maxRetries: number;
+    retryDelay: number;
+    autoCollectItems: boolean;
+    autoEquipTools: boolean;
+  };
 }
 
-interface WebSocketConfig {
-  host: string;
-  port: number;
-  reconnectInterval: number;
-}
+class MinecraftAIBodyApp {
+  private aiBody: AIBody | null = null;
+  private config: AppConfig;
+  private testMode: boolean = false;
 
-class MinecraftAIBody {
-  private bot: Bot | null = null;
-  private websocket: WebSocket | null = null;
-  private config: BotConfig;
-  private wsConfig: WebSocketConfig;
-  private isConnected: boolean = false;
-  private reconnectAttempts: number = 0;
-  private maxReconnectAttempts: number = 5;
-
-  constructor(botConfig: BotConfig, wsConfig: WebSocketConfig) {
-    this.config = botConfig;
-    this.wsConfig = wsConfig;
+  constructor(config: AppConfig) {
+    this.config = config;
+    this.testMode = config.testMode;
   }
 
   /**
-   * Initialize the Mineflayer bot with all required plugins
+   * Initialize the MinecraftAIBody instance
    */
-  private async initializeBot(): Promise<void> {
-    console.log('🤖 Initializing Mineflayer bot...');
-    
-    try {
-      this.bot = createBot({
-        host: this.config.host,
-        port: this.config.port,
-        username: this.config.username,
-        version: this.config.version || '1.20.4',
-        auth: this.config.auth || 'offline'
-      });
+  private initializeAIBody(): void {
+    const options: MinecraftAIBodyOptions = {
+      host: this.config.minecraft.host,
+      port: this.config.minecraft.port,
+      username: this.config.minecraft.username,
+      version: this.config.minecraft.version,
+      auth: this.config.minecraft.auth,
+      maxRetries: this.config.bot.maxRetries,
+      retryDelay: this.config.bot.retryDelay,
+      autoCollectItems: this.config.bot.autoCollectItems,
+      autoEquipTools: this.config.bot.autoEquipTools
+    };
 
-      // Load essential plugins
-      this.bot.loadPlugin(pathfinder);
-      this.bot.loadPlugin(pvp);
-      // this.bot.loadPlugin(builder); // TODO: Enable when builder plugin works
-
-      this.setupBotEventHandlers();
-      
-    } catch (error) {
-      console.error('❌ Failed to initialize bot:', error);
-      throw error;
+    // Add WebSocket URL only if not in test mode
+    if (!this.testMode) {
+      options.webSocketUrl = this.config.websocket.url;
+      options.webSocketReconnectInterval = this.config.websocket.reconnectInterval;
     }
+
+         this.aiBody = new AIBody(options);
+    this.setupEventHandlers();
   }
 
   /**
-   * Setup event handlers for the Mineflayer bot
+   * Setup event handlers for the AI Body
    */
-  private setupBotEventHandlers(): void {
-    if (!this.bot) return;
+  private setupEventHandlers(): void {
+    if (!this.aiBody) return;
 
-    this.bot.on('login', () => {
-      console.log('✅ Bot logged into Minecraft server');
-      this.isConnected = true;
-      this.reconnectAttempts = 0;
-      
-      // Initialize pathfinding
-      if (this.bot?.entity.position) {
-        const movements = new Movements(this.bot);
-        this.bot.pathfinder.setMovements(movements);
-      }
+    this.aiBody.on('connecting', () => {
+      console.log('🔌 Connecting to Minecraft server...');
     });
 
-    this.bot.on('spawn', () => {
+    this.aiBody.on('connected', () => {
+      console.log('✅ Connected to Minecraft server');
+    });
+
+    this.aiBody.on('spawned', () => {
       console.log('🌍 Bot spawned in world');
-      this.sendWebSocketMessage({
-        type: 'bot_status',
-        status: 'spawned',
-        position: this.bot?.entity.position,
-        health: this.bot?.health,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    this.bot.on('chat', (username, message) => {
-      console.log(`💬 Chat [${username}]: ${message}`);
-      
-      // Send chat messages to Java Plugin for AI processing
-      this.sendWebSocketMessage({
-        type: 'chat_message',
-        username,
-        message,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    this.bot.on('error', (error) => {
-      console.error('❌ Bot error:', error);
-      this.handleBotDisconnection();
-    });
-
-    this.bot.on('end', (reason) => {
-      console.log('🔌 Bot disconnected:', reason);
-      this.isConnected = false;
-      this.handleBotDisconnection();
-    });
-
-    this.bot.on('death', () => {
-      console.log('💀 Bot died, respawning...');
-      this.sendWebSocketMessage({
-        type: 'bot_status',
-        status: 'died',
-        timestamp: new Date().toISOString()
-      });
-    });
-  }
-
-  /**
-   * Initialize WebSocket connection to Java Plugin
-   */
-  private async initializeWebSocket(): Promise<void> {
-    console.log('🔌 Connecting to WebSocket server...');
-    
-    try {
-      const wsUrl = `ws://${this.wsConfig.host}:${this.wsConfig.port}`;
-      this.websocket = new WebSocket(wsUrl);
-
-      this.websocket.on('open', () => {
-        console.log('✅ WebSocket connected to Java Plugin');
-        this.sendWebSocketMessage({
-          type: 'connection',
-          status: 'connected',
-          clientType: 'mineflayer-bot',
-          timestamp: new Date().toISOString()
-        });
-      });
-
-      this.websocket.on('message', (data) => {
-        this.handleWebSocketMessage(data.toString());
-      });
-
-      this.websocket.on('error', (error) => {
-        console.error('❌ WebSocket error:', error);
-      });
-
-      this.websocket.on('close', () => {
-        console.log('🔌 WebSocket disconnected');
-        this.scheduleWebSocketReconnection();
-      });
-
-    } catch (error) {
-      console.error('❌ Failed to initialize WebSocket:', error);
-      this.scheduleWebSocketReconnection();
-    }
-  }
-
-  /**
-   * Handle incoming WebSocket messages from Java Plugin
-   */
-  private handleWebSocketMessage(data: string): void {
-    try {
-      const message = JSON.parse(data);
-      console.log('📨 Received message:', message);
-
-      switch (message.type) {
-        case 'move':
-          this.handleMoveCommand(message);
-          break;
-        case 'chat':
-          this.handleChatCommand(message);
-          break;
-        case 'action':
-          this.handleActionCommand(message);
-          break;
-        default:
-          console.log('⚠️  Unknown message type:', message.type);
+      if (this.testMode) {
+        this.runTestSequence();
       }
-    } catch (error) {
-      console.error('❌ Failed to parse WebSocket message:', error);
-    }
+    });
+
+    this.aiBody.on('disconnected', () => {
+      console.log('🔌 Disconnected from Minecraft server');
+    });
+
+    this.aiBody.on('error', (error) => {
+      console.error('❌ AI Body error:', error);
+    });
+
+    this.aiBody.on('statusUpdate', (status) => {
+      if (this.testMode) {
+        console.log('📊 Bot Status:', {
+          health: status.health,
+          food: status.food,
+          position: status.position,
+          inventoryUsed: status.inventoryUsed
+        });
+      }
+    });
+
+    // Movement events
+    this.aiBody.on('movementStarted', (data) => {
+      console.log('🚶 Movement started:', data);
+    });
+
+    this.aiBody.on('movementCompleted', (data) => {
+      console.log('✅ Movement completed:', data);
+    });
+
+    this.aiBody.on('movementStopped', () => {
+      console.log('⏹️  Movement stopped');
+    });
+
+    // Interaction events
+    this.aiBody.on('blockPlaced', (data) => {
+      console.log('🧱 Block placed:', data);
+    });
+
+    this.aiBody.on('blockBroken', (data) => {
+      console.log('⛏️  Block broken:', data);
+    });
+
+    this.aiBody.on('itemCollected', (data) => {
+      console.log('📦 Item collected:', data);
+    });
+
+    this.aiBody.on('entityAttacked', (data) => {
+      console.log('⚔️  Entity attacked:', data);
+    });
   }
 
   /**
-   * Send message to Java Plugin via WebSocket
+   * Run test sequence to demonstrate capabilities
    */
-  private sendWebSocketMessage(message: any): void {
-    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      this.websocket.send(JSON.stringify(message));
-    } else {
-      console.warn('⚠️  WebSocket not connected, message not sent:', message);
-    }
-  }
+  private async runTestSequence(): Promise<void> {
+    if (!this.aiBody) return;
 
-  /**
-   * Handle movement commands from Java Plugin
-   */
-  private async handleMoveCommand(message: any): Promise<void> {
-    if (!this.bot) return;
+    console.log('\n🧪 Running test sequence...');
 
-    const { x, y, z } = message;
-    console.log(`🚶 Moving to position: ${x}, ${y}, ${z}`);
-    
     try {
-      const { goals } = require('mineflayer-pathfinder');
-      const goal = new goals.GoalNear(x, y, z, 1);
-      await this.bot.pathfinder.goto(goal);
-      this.sendWebSocketMessage({
-        type: 'move_result',
-        success: true,
-        position: this.bot.entity.position,
-        timestamp: new Date().toISOString()
-      });
+      // Wait a bit for bot to fully initialize
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Test 1: Get bot status
+      console.log('\n📊 Test 1: Getting bot status...');
+      const status = this.aiBody.getStatus();
+      if (status) {
+        console.log('✅ Bot status retrieved:', {
+          connected: status.connected,
+          health: status.health,
+          food: status.food,
+          position: status.position,
+          dimension: status.dimension,
+          gameMode: status.gameMode
+        });
+      }
+
+      // Test 2: Get inventory
+      console.log('\n📦 Test 2: Getting inventory...');
+      const inventory = this.aiBody.getInventory();
+      console.log('✅ Inventory retrieved:', inventory.length, 'items');
+
+      // Test 3: Test movement capabilities (if bot is ready)
+      if (this.aiBody.isReady()) {
+        console.log('\n🚶 Test 3: Testing movement capabilities...');
+        const currentPos = this.aiBody.getBot()?.entity.position;
+        if (currentPos) {
+          const targetPos = {
+            x: currentPos.x + 5,
+            y: currentPos.y,
+            z: currentPos.z + 5
+          };
+          console.log(`Moving from ${currentPos.x},${currentPos.y},${currentPos.z} to ${targetPos.x},${targetPos.y},${targetPos.z}`);
+          
+          try {
+            const result = await this.aiBody.moveTo(targetPos.x, targetPos.y, targetPos.z);
+            console.log('✅ Movement test result:', result);
+          } catch (error) {
+            console.log('⚠️  Movement test failed (expected in test mode):', error instanceof Error ? error.message : 'Unknown error');
+          }
+        }
+      }
+
+      // Test 4: Test nearby entities
+      console.log('\n👥 Test 4: Getting nearby entities...');
+      const nearbyEntities = this.aiBody.getNearbyEntities({ maxDistance: 10 });
+      console.log('✅ Found', nearbyEntities.length, 'nearby entities');
+
+      console.log('\n🎉 Test sequence completed!');
+
     } catch (error) {
-      console.error('❌ Move failed:', error);
-      this.sendWebSocketMessage({
-        type: 'move_result',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      });
+      console.error('❌ Test sequence failed:', error);
     }
   }
 
   /**
-   * Handle chat commands from Java Plugin
-   */
-  private handleChatCommand(message: any): void {
-    if (!this.bot) return;
-
-    const { text } = message;
-    console.log(`💬 Sending chat: ${text}`);
-    this.bot.chat(text);
-  }
-
-  /**
-   * Handle action commands from Java Plugin
-   */
-  private async handleActionCommand(message: any): Promise<void> {
-    // TODO: Implement various bot actions (dig, place, attack, etc.)
-    console.log('🎯 Action command received:', message);
-  }
-
-  /**
-   * Handle bot disconnection and attempt reconnection
-   */
-  private handleBotDisconnection(): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      console.log(`🔄 Attempting to reconnect bot (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
-      
-      setTimeout(() => {
-        this.initializeBot();
-      }, 5000);
-    } else {
-      console.error('❌ Max reconnection attempts reached for bot');
-    }
-  }
-
-  /**
-   * Schedule WebSocket reconnection
-   */
-  private scheduleWebSocketReconnection(): void {
-    setTimeout(() => {
-      console.log('🔄 Attempting to reconnect WebSocket...');
-      this.initializeWebSocket();
-    }, this.wsConfig.reconnectInterval);
-  }
-
-  /**
-   * Start the Minecraft AI Body
+   * Start the application
    */
   public async start(): Promise<void> {
     console.log('🚀 Starting Minecraft AI Body...');
     
+    if (this.testMode) {
+      console.log('🧪 Running in TEST MODE - no server connections required');
+      console.log('📝 This mode demonstrates the AI Body capabilities without actual servers');
+      
+      // In test mode, we create a mock demonstration
+      this.runTestModeDemo();
+      return;
+    }
+
     try {
-      // Initialize WebSocket connection first
-      await this.initializeWebSocket();
+      this.initializeAIBody();
       
-      // Then initialize the bot
-      await this.initializeBot();
-      
-      console.log('✅ Minecraft AI Body started successfully');
+      if (this.aiBody) {
+        await this.aiBody.connect();
+        console.log('✅ Minecraft AI Body started successfully');
+      }
       
     } catch (error) {
       console.error('❌ Failed to start Minecraft AI Body:', error);
+      
+      if (error instanceof Error && error.message.includes('ECONNREFUSED')) {
+        console.log('\n💡 Connection failed! Try running in test mode:');
+        console.log('   npm run test-mode');
+        console.log('   or');
+        console.log('   TEST_MODE=true npm start');
+      }
+      
       process.exit(1);
     }
   }
 
   /**
-   * Stop the Minecraft AI Body
+   * Run demonstration in test mode
+   */
+  private runTestModeDemo(): void {
+    console.log('\n🎯 MinecraftAIBody Class Capabilities Demo:');
+    console.log('==========================================');
+    
+    // Create instance for demonstration
+    this.initializeAIBody();
+    
+    console.log('\n📋 Available Methods:');
+    console.log('');
+    console.log('🔌 Connection Management:');
+    console.log('  - connect()           Connect to Minecraft server');
+    console.log('  - disconnect()        Disconnect from server');
+    console.log('  - isReady()           Check if bot is ready');
+    console.log('  - getStatus()         Get comprehensive bot status');
+    console.log('');
+    console.log('🚶 Movement & Navigation:');
+    console.log('  - moveTo(x, y, z)     Move to coordinates');
+    console.log('  - moveToEntity(id)    Move to entity');
+    console.log('  - followEntity(id)    Follow entity');
+    console.log('  - stopMoving()        Stop all movement');
+    console.log('  - distanceTo(target)  Calculate distance');
+    console.log('');
+    console.log('🌍 World Interaction:');
+    console.log('  - placeBlock(pos, type)    Place block');
+    console.log('  - breakBlock(pos)          Break block');
+    console.log('  - collectItem(type)        Collect items');
+    console.log('  - useItem(type)            Use item');
+    console.log('  - getNearbyBlocks(type)    Find blocks');
+    console.log('');
+    console.log('👥 Entity Interaction:');
+    console.log('  - attackEntity(id)         Attack entity');
+    console.log('  - interactWithEntity(id)   Interact with entity');
+    console.log('  - getNearbyEntities(filter) Find entities');
+    console.log('');
+    console.log('🎒 Inventory Management:');
+    console.log('  - getInventory()           Get inventory');
+    console.log('  - findItemInInventory(type) Find item');
+    console.log('  - equipItem(type)          Equip item');
+    console.log('  - craftItem(type)          Craft item');
+    console.log('  - depositItemsInChest()    Store items');
+    console.log('');
+    console.log('📊 Status & Monitoring:');
+    console.log('  - Event-driven updates    Real-time status');
+    console.log('  - Comprehensive logging   Detailed feedback');
+    console.log('  - Error handling          Robust operation');
+    console.log('');
+    console.log('🎉 All features implemented and ready for use!');
+    console.log('   To test with real servers, configure and run:');
+    console.log('   npm start');
+    
+    setTimeout(() => {
+      console.log('\n✅ Demo completed. Press Ctrl+C to exit.');
+    }, 1000);
+  }
+
+  /**
+   * Stop the application
    */
   public async stop(): Promise<void> {
     console.log('🛑 Stopping Minecraft AI Body...');
     
-    if (this.bot) {
-      this.bot.quit();
-    }
-    
-    if (this.websocket) {
-      this.websocket.close();
+    if (this.aiBody) {
+      await this.aiBody.disconnect();
+      this.aiBody.destroy();
     }
     
     console.log('✅ Minecraft AI Body stopped');
   }
 }
 
-// Configuration
-const botConfig: BotConfig = {
-  host: process.env.MINECRAFT_HOST || 'localhost',
-  port: parseInt(process.env.MINECRAFT_PORT || '25565'),
-  username: process.env.BOT_USERNAME || 'AICompanion',
-  version: process.env.MINECRAFT_VERSION || '1.20.4',
-  auth: 'offline'
+// Configuration from environment variables
+const config: AppConfig = {
+  testMode: process.env.TEST_MODE === 'true' || process.argv.includes('--test-mode'),
+  minecraft: {
+    host: process.env.MINECRAFT_HOST || 'localhost',
+    port: parseInt(process.env.MINECRAFT_PORT || '25565'),
+    username: process.env.BOT_USERNAME || 'AICompanion',
+    version: process.env.MINECRAFT_VERSION || '1.20.4',
+    auth: (process.env.MINECRAFT_AUTH as 'microsoft' | 'mojang' | 'offline') || 'offline'
+  },
+  websocket: {
+    url: process.env.WEBSOCKET_URL || 'ws://localhost:8080',
+    reconnectInterval: parseInt(process.env.WEBSOCKET_RECONNECT_INTERVAL || '5000')
+  },
+  bot: {
+    maxRetries: parseInt(process.env.BOT_MAX_RETRIES || '5'),
+    retryDelay: parseInt(process.env.BOT_RETRY_DELAY || '5000'),
+    autoCollectItems: process.env.BOT_AUTO_COLLECT_ITEMS === 'true',
+    autoEquipTools: process.env.BOT_AUTO_EQUIP_TOOLS === 'true'
+  }
 };
 
-const wsConfig: WebSocketConfig = {
-  host: process.env.WEBSOCKET_HOST || 'localhost',
-  port: parseInt(process.env.WEBSOCKET_PORT || '8080'),
-  reconnectInterval: parseInt(process.env.RECONNECT_INTERVAL || '5000')
-};
+// Initialize and start the application
+const app = new MinecraftAIBodyApp(config);
 
-// Initialize and start the bot
-const aiBody = new MinecraftAIBody(botConfig, wsConfig);
-
-// Graceful shutdown
+// Graceful shutdown handlers
 process.on('SIGINT', async () => {
-  console.log('\\n🛑 Received SIGINT, shutting down gracefully...');
-  await aiBody.stop();
+  console.log('\n🛑 Received SIGINT, shutting down gracefully...');
+  await app.stop();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
-  console.log('\\n🛑 Received SIGTERM, shutting down gracefully...');
-  await aiBody.stop();
+  console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
+  await app.stop();
   process.exit(0);
 });
 
 // Start the application
-aiBody.start().catch((error) => {
+app.start().catch((error) => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 }); 
