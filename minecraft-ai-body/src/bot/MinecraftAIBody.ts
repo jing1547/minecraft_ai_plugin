@@ -34,6 +34,90 @@ export interface CommandRegistry {
     [commandType: string]: CommandHandler;
 }
 
+// Event Reporting and Logging interfaces
+export interface LogEntry {
+    timestamp: number;
+    level: LogLevel;
+    category: string;
+    message: string;
+    data?: any;
+    source?: string;
+}
+
+export interface EventReport {
+    id: string;
+    timestamp: number;
+    type: EventType;
+    data: any;
+    severity: LogLevel;
+}
+
+export interface LoggingConfig {
+    level: LogLevel;
+    categories: string[];
+    enableConsole: boolean;
+    enableFile: boolean;
+    enableWebSocket: boolean;
+    maxLogEntries: number;
+    reportingInterval: number;
+}
+
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export type EventType = 
+    | 'bot_status_change'
+    | 'inventory_change'
+    | 'health_change'
+    | 'entity_sighted'
+    | 'entity_interaction'
+    | 'block_interaction'
+    | 'movement_update'
+    | 'chat_message'
+    | 'combat_event'
+    | 'error_occurred'
+    | 'connection_event'
+    | 'world_observation';
+
+export interface InventoryChangeEvent {
+    action: 'added' | 'removed' | 'moved';
+    item: {
+        type: string;
+        name: string;
+        count: number;
+        slot: number;
+    };
+    previousCount?: number;
+    newCount?: number;
+}
+
+export interface EntitySightingEvent {
+    entityId: string;
+    entityType: string;
+    entityName?: string;
+    position: {x: number; y: number; z: number};
+    distance: number;
+    isHostile: boolean;
+    isPlayer: boolean;
+    action: 'entered_range' | 'left_range';
+}
+
+export interface HealthChangeEvent {
+    previousHealth: number;
+    newHealth: number;
+    previousFood: number;
+    newFood: number;
+    damageSource?: string;
+    isHealing: boolean;
+}
+
+export interface CombatEvent {
+    type: 'attacked' | 'killed' | 'damaged' | 'missed';
+    target?: string;
+    attacker?: string;
+    damage?: number;
+    weapon?: string;
+}
+
 // Movement-related interfaces
 export interface MovementCommand {
     id: string;
@@ -207,6 +291,17 @@ export class MinecraftAIBody extends EventEmitter {
     private commandRegistry: CommandRegistry = {};
     private pendingCommands: Map<string, (response: WebSocketResponse) => void> = new Map();
 
+    // Event Reporting and Logging System
+    private loggingConfig: LoggingConfig;
+    private logEntries: LogEntry[] = [];
+    private eventReports: EventReport[] = [];
+    private reportingInterval: NodeJS.Timeout | null = null;
+    private lastKnownInventory: Map<string, number> = new Map();
+    private lastKnownHealth: number = 20;
+    private lastKnownFood: number = 20;
+    private nearbyEntitiesCache: Map<string, EntitySightingEvent> = new Map();
+    private eventIdCounter: number = 0;
+
     constructor(options: MinecraftAIBodyOptions = {}) {
         super();
         
@@ -258,6 +353,17 @@ export class MinecraftAIBody extends EventEmitter {
         this.handlePathfindingTimeout = this.handlePathfindingTimeout.bind(this);
         this.handlePathfindingError = this.handlePathfindingError.bind(this);
         
+        // Initialize logging configuration
+        this.loggingConfig = {
+            level: 'info',
+            categories: ['general', 'movement', 'interaction', 'combat', 'inventory'],
+            enableConsole: true,
+            enableFile: false,
+            enableWebSocket: true,
+            maxLogEntries: 1000,
+            reportingInterval: 5000 // 5 seconds
+        };
+        
         // Initialize WebSocket command registry
         this.initializeCommandRegistry();
         
@@ -265,6 +371,9 @@ export class MinecraftAIBody extends EventEmitter {
         if (this.options.webSocketUrl) {
             this.initializeWebSocket();
         }
+        
+        // Start event reporting
+        this.startEventReporting();
     }
 
     /**
@@ -2221,6 +2330,136 @@ export class MinecraftAIBody extends EventEmitter {
                 };
             }
         };
+
+        // Logging and Event Reporting commands
+        this.commandRegistry['getLogEntries'] = async (command: WebSocketCommand) => {
+            const { count, level } = command.payload || {};
+            try {
+                const entries = this.getLogEntries(count, level);
+                return {
+                    id: command.id,
+                    type: 'getLogEntries',
+                    success: true,
+                    result: entries,
+                    timestamp: Date.now()
+                };
+            } catch (error) {
+                return {
+                    id: command.id,
+                    type: 'getLogEntries',
+                    success: false,
+                    error: (error as Error).message,
+                    timestamp: Date.now()
+                };
+            }
+        };
+
+        this.commandRegistry['getEventReports'] = async (command: WebSocketCommand) => {
+            const { count, type } = command.payload || {};
+            try {
+                const reports = this.getEventReports(count, type);
+                return {
+                    id: command.id,
+                    type: 'getEventReports',
+                    success: true,
+                    result: reports,
+                    timestamp: Date.now()
+                };
+            } catch (error) {
+                return {
+                    id: command.id,
+                    type: 'getEventReports',
+                    success: false,
+                    error: (error as Error).message,
+                    timestamp: Date.now()
+                };
+            }
+        };
+
+        this.commandRegistry['updateLoggingConfig'] = async (command: WebSocketCommand) => {
+            const { config } = command.payload;
+            try {
+                this.updateLoggingConfig(config);
+                return {
+                    id: command.id,
+                    type: 'updateLoggingConfig',
+                    success: true,
+                    result: { message: 'Logging configuration updated' },
+                    timestamp: Date.now()
+                };
+            } catch (error) {
+                return {
+                    id: command.id,
+                    type: 'updateLoggingConfig',
+                    success: false,
+                    error: (error as Error).message,
+                    timestamp: Date.now()
+                };
+            }
+        };
+
+        this.commandRegistry['getLoggingConfig'] = async (command: WebSocketCommand) => {
+            try {
+                const config = this.getLoggingConfig();
+                return {
+                    id: command.id,
+                    type: 'getLoggingConfig',
+                    success: true,
+                    result: config,
+                    timestamp: Date.now()
+                };
+            } catch (error) {
+                return {
+                    id: command.id,
+                    type: 'getLoggingConfig',
+                    success: false,
+                    error: (error as Error).message,
+                    timestamp: Date.now()
+                };
+            }
+        };
+
+        this.commandRegistry['clearLogs'] = async (command: WebSocketCommand) => {
+            try {
+                this.clearLogs();
+                return {
+                    id: command.id,
+                    type: 'clearLogs',
+                    success: true,
+                    result: { message: 'Log entries cleared' },
+                    timestamp: Date.now()
+                };
+            } catch (error) {
+                return {
+                    id: command.id,
+                    type: 'clearLogs',
+                    success: false,
+                    error: (error as Error).message,
+                    timestamp: Date.now()
+                };
+            }
+        };
+
+        this.commandRegistry['clearEvents'] = async (command: WebSocketCommand) => {
+            try {
+                this.clearEvents();
+                return {
+                    id: command.id,
+                    type: 'clearEvents',
+                    success: true,
+                    result: { message: 'Event reports cleared' },
+                    timestamp: Date.now()
+                };
+            } catch (error) {
+                return {
+                    id: command.id,
+                    type: 'clearEvents',
+                    success: false,
+                    error: (error as Error).message,
+                    timestamp: Date.now()
+                };
+            }
+        };
     }
 
     /**
@@ -2324,12 +2563,20 @@ export class MinecraftAIBody extends EventEmitter {
     public destroy(): void {
         this.disconnect();
         this.removeAllListeners();
+        
+        // Stop event reporting
+        this.stopEventReporting();
+        
+        // Cleanup WebSocket
         if (this.webSocket) {
             this.webSocket.close();
         }
         if (this.webSocketReconnectTimeout) {
             clearTimeout(this.webSocketReconnectTimeout);
         }
+        
+        // Log shutdown
+        this.logInfo('system', 'MinecraftAIBody destroyed and resources cleaned up');
     }
 
     /**
@@ -2410,5 +2657,412 @@ export class MinecraftAIBody extends EventEmitter {
      */
     public sendCommandResponse(response: WebSocketResponse): void {
         this.sendWebSocketMessage(response);
+    }
+
+    // ===================================================================
+    // EVENT REPORTING AND LOGGING SYSTEM
+    // ===================================================================
+
+    /**
+     * Start periodic event reporting
+     */
+    private startEventReporting(): void {
+        if (this.reportingInterval) {
+            clearInterval(this.reportingInterval);
+        }
+
+        this.reportingInterval = setInterval(() => {
+            this.generatePeriodicReport();
+            this.cleanupOldLogs();
+        }, this.loggingConfig.reportingInterval);
+    }
+
+    /**
+     * Stop event reporting
+     */
+    private stopEventReporting(): void {
+        if (this.reportingInterval) {
+            clearInterval(this.reportingInterval);
+            this.reportingInterval = null;
+        }
+    }
+
+    /**
+     * Log a message with specified level and category
+     */
+    public log(level: LogLevel, category: string, message: string, data?: any): void {
+        const entry: LogEntry = {
+            timestamp: Date.now(),
+            level,
+            category,
+            message,
+            data,
+            source: 'MinecraftAIBody'
+        };
+
+        // Add to log entries
+        this.logEntries.push(entry);
+
+        // Trim old entries if exceeding max
+        if (this.logEntries.length > this.loggingConfig.maxLogEntries) {
+            this.logEntries = this.logEntries.slice(-this.loggingConfig.maxLogEntries);
+        }
+
+        // Output based on configuration
+        if (this.loggingConfig.enableConsole && this.shouldLog(level)) {
+            this.outputToConsole(entry);
+        }
+
+        if (this.loggingConfig.enableWebSocket && this.webSocketConnected) {
+            this.sendLogToWebSocket(entry);
+        }
+
+        // Emit log event
+        this.emit('log', entry);
+    }
+
+    /**
+     * Log debug message
+     */
+    public logDebug(category: string, message: string, data?: any): void {
+        this.log('debug', category, message, data);
+    }
+
+    /**
+     * Log info message
+     */
+    public logInfo(category: string, message: string, data?: any): void {
+        this.log('info', category, message, data);
+    }
+
+    /**
+     * Log warning message
+     */
+    public logWarn(category: string, message: string, data?: any): void {
+        this.log('warn', category, message, data);
+    }
+
+    /**
+     * Log error message
+     */
+    public logError(category: string, message: string, data?: any): void {
+        this.log('error', category, message, data);
+    }
+
+    /**
+     * Report an event
+     */
+    public reportEvent(type: EventType, data: any, severity: LogLevel = 'info'): void {
+        const eventReport: EventReport = {
+            id: this.generateEventId(),
+            timestamp: Date.now(),
+            type,
+            data,
+            severity
+        };
+
+        this.eventReports.push(eventReport);
+
+        // Log the event
+        this.log(severity, 'event', `Event: ${type}`, data);
+
+        // Send to WebSocket if connected
+        if (this.webSocketConnected) {
+            this.sendEventToWebSocket(eventReport);
+        }
+
+        // Emit event
+        this.emit('event', eventReport);
+        this.emit(type, data);
+    }
+
+    /**
+     * Update logging configuration
+     */
+    public updateLoggingConfig(config: Partial<LoggingConfig>): void {
+        this.loggingConfig = { ...this.loggingConfig, ...config };
+        
+        // Restart reporting with new interval if changed
+        if (config.reportingInterval) {
+            this.startEventReporting();
+        }
+
+        this.logInfo('system', 'Logging configuration updated', config);
+    }
+
+    /**
+     * Get current logging configuration
+     */
+    public getLoggingConfig(): LoggingConfig {
+        return { ...this.loggingConfig };
+    }
+
+    /**
+     * Get recent log entries
+     */
+    public getLogEntries(count?: number, level?: LogLevel): LogEntry[] {
+        let entries = this.logEntries;
+
+        if (level) {
+            entries = entries.filter(entry => entry.level === level);
+        }
+
+        if (count) {
+            return entries.slice(-count);
+        }
+
+        return entries.slice();
+    }
+
+    /**
+     * Get recent event reports
+     */
+    public getEventReports(count?: number, type?: EventType): EventReport[] {
+        let reports = this.eventReports;
+
+        if (type) {
+            reports = reports.filter(report => report.type === type);
+        }
+
+        if (count) {
+            return reports.slice(-count);
+        }
+
+        return reports.slice();
+    }
+
+    /**
+     * Clear log entries
+     */
+    public clearLogs(): void {
+        this.logEntries = [];
+        this.logInfo('system', 'Log entries cleared');
+    }
+
+    /**
+     * Clear event reports
+     */
+    public clearEvents(): void {
+        this.eventReports = [];
+        this.logInfo('system', 'Event reports cleared');
+    }
+
+    // Private logging helper methods
+
+    /**
+     * Check if message should be logged based on level
+     */
+    private shouldLog(level: LogLevel): boolean {
+        const levels = ['debug', 'info', 'warn', 'error'];
+        const configLevel = levels.indexOf(this.loggingConfig.level);
+        const messageLevel = levels.indexOf(level);
+        return messageLevel >= configLevel;
+    }
+
+    /**
+     * Output log entry to console
+     */
+    private outputToConsole(entry: LogEntry): void {
+        const timestamp = new Date(entry.timestamp).toISOString();
+        const prefix = `[${timestamp}] [${entry.level.toUpperCase()}] [${entry.category}]`;
+        
+        switch (entry.level) {
+            case 'debug':
+                console.log(`${prefix} ${entry.message}`, entry.data || '');
+                break;
+            case 'info':
+                console.info(`${prefix} ${entry.message}`, entry.data || '');
+                break;
+            case 'warn':
+                console.warn(`${prefix} ${entry.message}`, entry.data || '');
+                break;
+            case 'error':
+                console.error(`${prefix} ${entry.message}`, entry.data || '');
+                break;
+        }
+    }
+
+    /**
+     * Send log entry to WebSocket
+     */
+    private sendLogToWebSocket(entry: LogEntry): void {
+        if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+            this.webSocket.send(JSON.stringify({
+                type: 'log',
+                data: entry
+            }));
+        }
+    }
+
+    /**
+     * Send event report to WebSocket
+     */
+    private sendEventToWebSocket(eventReport: EventReport): void {
+        if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+            this.webSocket.send(JSON.stringify({
+                type: 'event',
+                data: eventReport
+            }));
+        }
+    }
+
+    /**
+     * Generate unique event ID
+     */
+    private generateEventId(): string {
+        return `event_${++this.eventIdCounter}_${Date.now()}`;
+    }
+
+    /**
+     * Generate periodic status report
+     */
+    private generatePeriodicReport(): void {
+        if (!this.bot || !this.isConnected) return;
+
+        const status = this.getStatus();
+        if (status) {
+            this.reportEvent('bot_status_change', status, 'debug');
+        }
+
+        // Check for inventory changes
+        this.checkInventoryChanges();
+
+        // Check for health changes
+        this.checkHealthChanges();
+
+        // Check for nearby entities
+        this.checkNearbyEntities();
+    }
+
+    /**
+     * Check for inventory changes and report them
+     */
+    private checkInventoryChanges(): void {
+        if (!this.bot) return;
+
+        const currentInventory = new Map<string, number>();
+        
+        // Build current inventory map
+        this.bot.inventory.items().forEach(item => {
+            const key = `${item.type}:${item.name}`;
+            currentInventory.set(key, (currentInventory.get(key) || 0) + item.count);
+        });
+
+        // Compare with last known inventory
+        const allKeys = new Set([...this.lastKnownInventory.keys(), ...currentInventory.keys()]);
+        
+        for (const key of allKeys) {
+            const [type, name] = key.split(':');
+            const previousCount = this.lastKnownInventory.get(key) || 0;
+            const newCount = currentInventory.get(key) || 0;
+
+            if (previousCount !== newCount && type && name) {
+                const change: InventoryChangeEvent = {
+                    action: newCount > previousCount ? 'added' : 'removed',
+                    item: {
+                        type,
+                        name,
+                        count: Math.abs(newCount - previousCount),
+                        slot: -1 // Not tracking specific slot in this context
+                    },
+                    previousCount,
+                    newCount
+                };
+
+                this.reportEvent('inventory_change', change, 'info');
+            }
+        }
+
+        this.lastKnownInventory = currentInventory;
+    }
+
+    /**
+     * Check for health changes and report them
+     */
+    private checkHealthChanges(): void {
+        if (!this.bot) return;
+
+        const currentHealth = this.bot.health;
+        const currentFood = this.bot.food;
+
+        if (currentHealth !== this.lastKnownHealth || currentFood !== this.lastKnownFood) {
+            const change: HealthChangeEvent = {
+                previousHealth: this.lastKnownHealth,
+                newHealth: currentHealth,
+                previousFood: this.lastKnownFood,
+                newFood: currentFood,
+                isHealing: currentHealth > this.lastKnownHealth
+            };
+
+            this.reportEvent('health_change', change, currentHealth < this.lastKnownHealth ? 'warn' : 'info');
+            
+            this.lastKnownHealth = currentHealth;
+            this.lastKnownFood = currentFood;
+        }
+    }
+
+    /**
+     * Check for nearby entities and report sightings
+     */
+    private checkNearbyEntities(): void {
+        if (!this.bot) return;
+
+        const currentEntities = new Map<string, EntitySightingEvent>();
+        const detectionRange = 16; // blocks
+
+        // Get all nearby entities
+        Object.values(this.bot.entities).forEach(entity => {
+            if (entity.id === this.bot!.entity.id) return; // Skip self
+
+            const distance = this.bot!.entity.position.distanceTo(entity.position);
+            if (distance <= detectionRange) {
+                const sighting: EntitySightingEvent = {
+                    entityId: entity.id.toString(),
+                    entityType: entity.name || 'unknown',
+                    position: {
+                        x: entity.position.x,
+                        y: entity.position.y,
+                        z: entity.position.z
+                    },
+                    distance,
+                    isHostile: this.isHostileEntity(entity),
+                    isPlayer: entity.type === 'player',
+                    action: 'entered_range'
+                };
+
+                // Add entityName only if it exists
+                if (entity.username) {
+                    sighting.entityName = entity.username;
+                }
+
+                currentEntities.set(entity.id.toString(), sighting);
+
+                // Report if new entity
+                if (!this.nearbyEntitiesCache.has(entity.id.toString())) {
+                    this.reportEvent('entity_sighted', sighting, sighting.isHostile ? 'warn' : 'debug');
+                }
+            }
+        });
+
+        // Check for entities that left range
+        for (const [entityId, lastSighting] of this.nearbyEntitiesCache) {
+            if (!currentEntities.has(entityId)) {
+                const leftSighting = { ...lastSighting, action: 'left_range' as const };
+                this.reportEvent('entity_sighted', leftSighting, 'debug');
+            }
+        }
+
+        this.nearbyEntitiesCache = currentEntities;
+    }
+
+    /**
+     * Clean up old log entries and event reports
+     */
+    private cleanupOldLogs(): void {
+        const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+        const cutoff = Date.now() - maxAge;
+
+        this.logEntries = this.logEntries.filter(entry => entry.timestamp > cutoff);
+        this.eventReports = this.eventReports.filter(report => report.timestamp > cutoff);
     }
 } 
