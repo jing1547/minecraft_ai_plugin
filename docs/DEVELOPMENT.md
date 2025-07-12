@@ -83,7 +83,7 @@ This document provides comprehensive guidelines for developing the Minecraft AI 
    cd test-server
    
    # Download Paper server (example)
-   curl -o paper.jar https://api.papermc.io/v2/projects/paper/versions/1.21/builds/latest/downloads/paper-1.21-latest.jar
+   curl -o paper.jar https://api.papermc.io/v2/projects/paper/versions/1.21.5/builds/latest/downloads/paper-1.21.5-latest.jar
    
    # Accept EULA
    echo "eula=true" > eula.txt
