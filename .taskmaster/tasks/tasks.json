@@ -165,8 +165,8 @@
             "title": "Add World Interaction Capabilities",
             "description": "Implement block manipulation, item handling, and entity interaction functionality.",
             "dependencies": [],
-            "details": "Add methods to the MinecraftAIBody class for interacting with the Minecraft world: placeBlock(position, blockType), breakBlock(position), collectItem(item), useItem(item), attackEntity(entity), and interactWithEntity(entity). Implement inventory management functions: findItemInInventory(itemType), equipItem(item), craftItem(recipe), and depositItemsInChest(chest). Create utility methods for identifying blocks and entities in the bot's vicinity.",
-            "status": "pending",
+            "details": "Add methods to the MinecraftAIBody class for interacting with the Minecraft world: placeBlock(position, blockType), breakBlock(position), collectItem(item), useItem(item), attackEntity(entity), and interactWithEntity(entity). Implement inventory management functions: findItemInInventory(itemType), equipItem(item), craftItem(recipe), and depositItemsInChest(chest). Create utility methods for identifying blocks and entities in the bot's vicinity.\n<info added on 2025-07-12T11:33:54.005Z>\n서브태스크 3.3 \"Add World Interaction Capabilities\" 완료\n\nMinecraftAIBody 클래스에 포괄적인 월드 상호작용 기능을 성공적으로 구현했습니다.\n\n구현된 주요 기능:\n\n1. 블록 조작 메소드:\n- placeBlock(position, blockType): 지정된 위치에 블록 배치\n- breakBlock(position): 지정된 위치의 블록 파괴\n- autoEquipBestTool(block): 블록에 맞는 최적의 도구 자동 장착\n\n2. 아이템 핸들링 메소드:\n- collectItem(itemType): 주변 아이템 수집\n- useItem(itemType): 인벤토리 아이템 사용\n- findItemInInventory(itemType): 인벤토리에서 아이템 검색\n- equipItem(itemType): 아이템 장착\n- getInventory(): 현재 인벤토리 정보 반환\n\n3. 엔티티 상호작용 메소드:\n- attackEntity(entityId): 엔티티 공격\n- interactWithEntity(entityId): 엔티티와 상호작용\n- getNearbyEntities(filter): 필터 조건에 맞는 주변 엔티티 검색\n- isHostileEntity(entity): 적대적 엔티티 여부 확인\n\n4. 인벤토리 관리 메소드:\n- craftItem(itemType, options): 아이템 제작\n- depositItemsInChest(chestPosition, itemType): 상자에 아이템 저장\n- findCraftingTable(): 주변 제작대 찾기\n\n5. 유틸리티 메소드:\n- getNearbyBlocks(blockType, maxDistance): 주변 특정 블록 찾기\n- 안전성 검사 및 에러 처리\n- 이벤트 시스템 통합 (blockPlaced, blockBroken, itemCollected, itemUsed, entityAttacked, entityInteracted 등)\n\n6. 추가된 인터페이스:\n- BlockPosition, BlockInteractionResult\n- ItemInteractionResult, InventoryItem\n- EntityInteractionResult, EntityFilter\n- CraftingOptions\n\n특징:\n- Promise 기반 비동기 처리로 모든 상호작용 결과 반환\n- 자동 도구 장착 기능 (autoEquipTools 옵션)\n- 상세한 결과 정보 제공 (성공/실패, 소요시간, 에러 메시지)\n- 안전성 검사 (블록 파괴 가능성, 아이템 존재 여부 등)\n- 거리 기반 엔티티 및 블록 검색\n- 적대적 엔티티 분류 시스템\n- 제작 재료 충분성 검사\n- 이벤트 기반 상태 업데이트\n\nTypeScript 빌드 성공 확인:\n모든 TypeScript 컴파일 에러를 수정하고 빌드 성공을 확인했습니다. 이제 MinecraftAIBody 클래스가 완전한 월드 상호작용 기능을 제공할 수 있습니다.\n</info added on 2025-07-12T11:33:54.005Z>",
+            "status": "done",
             "testStrategy": "Test each interaction function individually: place and break different block types, collect and use items, interact with various entities. Verify inventory management works correctly with different item types."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-12T11:21:04.811Z",
+      "updated": "2025-07-12T11:33:59.683Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },

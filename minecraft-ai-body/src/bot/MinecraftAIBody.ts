@@ -3,6 +3,10 @@ import { pathfinder, Movements, goals } from 'mineflayer-pathfinder';
 import { plugin as pvpPlugin } from 'mineflayer-pvp';
 import { EventEmitter } from 'events';
 import { Vec3 } from 'vec3';
+import { Entity } from 'prismarine-entity';
+import { Item } from 'prismarine-item';
+import { Block } from 'prismarine-block';
+import { Recipe } from 'prismarine-recipe';
 
 // Movement-related interfaces
 export interface MovementCommand {
@@ -34,6 +38,62 @@ export interface PathfindingResult {
     error?: string;
 }
 
+// World interaction interfaces
+export interface BlockPosition {
+    x: number;
+    y: number;
+    z: number;
+}
+
+export interface BlockInteractionResult {
+    success: boolean;
+    blockType?: string;
+    position?: Vec3;
+    error?: string;
+    duration?: number;
+}
+
+export interface ItemInteractionResult {
+    success: boolean;
+    item?: Item;
+    quantity?: number;
+    error?: string;
+    duration?: number;
+}
+
+export interface EntityInteractionResult {
+    success: boolean;
+    entity?: Entity;
+    result?: any;
+    error?: string;
+    duration?: number;
+}
+
+export interface InventoryItem {
+    type: string;
+    name: string;
+    count: number;
+    slot: number;
+    metadata?: any;
+}
+
+export interface CraftingOptions {
+    table?: boolean;
+    count?: number;
+    requireAll?: boolean;
+}
+
+// Entity detection and filtering
+export interface EntityFilter {
+    type?: string;
+    name?: string;
+    maxDistance?: number;
+    hostile?: boolean;
+    player?: boolean;
+    mob?: boolean;
+    item?: boolean;
+}
+
 export interface MinecraftAIBodyOptions {
     // Connection options
     host?: string;
@@ -57,6 +117,11 @@ export interface MinecraftAIBodyOptions {
     movementTimeout?: number;
     maxMovementQueue?: number;
     pathfindingRange?: number;
+    
+    // Interaction options
+    interactionTimeout?: number;
+    autoCollectItems?: boolean;
+    autoEquipTools?: boolean;
 }
 
 export interface BotStatus {
@@ -82,6 +147,13 @@ export interface BotStatus {
     currentTarget?: Vec3;
     queuedMovements: number;
     followingEntity?: string;
+    
+    // World interaction status
+    isInteracting: boolean;
+    heldItem?: string;
+    targetingEntity?: string;
+    nearbyEntities: number;
+    nearbyItems: number;
 }
 
 export class MinecraftAIBody extends EventEmitter {
@@ -285,7 +357,10 @@ export class MinecraftAIBody extends EventEmitter {
             inventoryUsed: this.bot.inventory.slots.filter(slot => slot !== null).length,
             inventoryTotal: this.bot.inventory.slots.length,
             isMoving: this.isMoving,
-            queuedMovements: this.movementQueue.length
+            queuedMovements: this.movementQueue.length,
+            isInteracting: false, // Placeholder, needs actual implementation
+            nearbyEntities: 0, // Placeholder, needs actual implementation
+            nearbyItems: 0 // Placeholder, needs actual implementation
         };
 
         // Add optional fields only if they exist
@@ -295,6 +370,11 @@ export class MinecraftAIBody extends EventEmitter {
         
         if (this.followingEntity) {
             status.followingEntity = this.followingEntity;
+        }
+
+        // Add heldItem only if bot is holding something
+        if (this.bot.heldItem) {
+            status.heldItem = this.bot.heldItem.name;
         }
 
         return status;
@@ -473,28 +553,704 @@ export class MinecraftAIBody extends EventEmitter {
     }
 
     /**
-     * Check if path is safe (no lava, deep water, etc.)
+     * Check if path is safe for movement
      */
     public isPathSafe(start: Vec3, end: Vec3): boolean {
         if (!this.bot) return false;
-        
-        // Basic safety check - can be enhanced with more sophisticated logic
-        const startBlock = this.bot.blockAt(start);
-        const endBlock = this.bot.blockAt(end);
-        
-        if (!startBlock || !endBlock) return false;
-        
-        // Check for lava
-        if (startBlock.name.includes('lava') || endBlock.name.includes('lava')) {
+
+        const distance = start.distanceTo(end);
+        if (distance > this.options.pathfindingRange!) return false;
+
+        try {
+            // Check for dangerous blocks along the path
+            const dangerousBlocks = ['lava', 'magma_block', 'fire', 'soul_fire', 'cactus'];
+            
+            // Simple line-of-sight check
+            const steps = Math.ceil(distance);
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                // Manual interpolation instead of lerp
+                const checkPos = new Vec3(
+                    start.x + (end.x - start.x) * t,
+                    start.y + (end.y - start.y) * t,
+                    start.z + (end.z - start.z) * t
+                );
+                const block = this.bot.blockAt(checkPos);
+                
+                if (block && dangerousBlocks.includes(block.name)) {
+                    return false;
+                }
+                
+                // Check if below bedrock
+                if (checkPos.y < 0) return false;
+            }
+            
+            return true;
+        } catch (error) {
             return false;
         }
-        
-        // Check for void
-        if (start.y < 0 || end.y < 0) {
-            return false;
+    }
+
+    // ===================
+    // WORLD INTERACTION METHODS
+    // ===================
+
+    /**
+     * Place a block at the specified position
+     */
+    public async placeBlock(position: BlockPosition, blockType: string): Promise<BlockInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
         }
+
+        const startTime = Date.now();
+        const targetPos = new Vec3(position.x, position.y, position.z);
+
+        try {
+            // Find the item in inventory
+            const blockItem = this.bot!.inventory.items().find(item => 
+                item.name === blockType || item.displayName === blockType
+            );
+
+            if (!blockItem) {
+                return {
+                    success: false,
+                    error: `Block type ${blockType} not found in inventory`,
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Equip the item
+            await this.bot!.equip(blockItem, 'hand');
+
+            // Find reference block to place against
+            const referenceBlock = this.bot!.blockAt(targetPos.offset(0, -1, 0));
+            if (!referenceBlock) {
+                return {
+                    success: false,
+                    error: 'No reference block found to place against',
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Place the block
+            await this.bot!.placeBlock(referenceBlock, new Vec3(0, 1, 0));
+
+            this.emit('blockPlaced', { position: targetPos, blockType });
+            return {
+                success: true,
+                blockType,
+                position: targetPos,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    /**
+     * Break a block at the specified position
+     */
+    public async breakBlock(position: BlockPosition): Promise<BlockInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
+        }
+
+        const startTime = Date.now();
+        const targetPos = new Vec3(position.x, position.y, position.z);
+
+        try {
+            const block = this.bot!.blockAt(targetPos);
+            if (!block) {
+                return {
+                    success: false,
+                    error: 'No block found at the specified position',
+                    duration: Date.now() - startTime
+                };
+            }
+
+            const blockType = block.name;
+
+            // Check if block is breakable
+            if (block.hardness === -1) {
+                return {
+                    success: false,
+                    error: 'Block is unbreakable',
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Auto-equip best tool if available
+            if (this.options.autoEquipTools) {
+                await this.autoEquipBestTool(block);
+            }
+
+            // Break the block
+            await this.bot!.dig(block);
+
+            this.emit('blockBroken', { position: targetPos, blockType });
+            return {
+                success: true,
+                blockType,
+                position: targetPos,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    /**
+     * Collect nearby items
+     */
+    public async collectItem(itemType?: string): Promise<ItemInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
+        }
+
+        const startTime = Date.now();
+
+        try {
+            // Find nearby items
+            const nearbyItems = Object.values(this.bot!.entities)
+                .filter(entity => entity.name === 'item')
+                .filter(entity => entity.position.distanceTo(this.bot!.entity.position) < 10);
+
+            if (nearbyItems.length === 0) {
+                return {
+                    success: false,
+                    error: 'No items found nearby',
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Filter by item type if specified
+            let targetItem = nearbyItems[0];
+            if (itemType) {
+                targetItem = nearbyItems.find(item => 
+                    item.metadata && typeof item.metadata === 'object' && 
+                    'displayName' in item.metadata && item.metadata.displayName === itemType
+                ) || nearbyItems[0];
+            }
+
+            if (!targetItem) {
+                return {
+                    success: false,
+                    error: 'No suitable item found',
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Move to the item
+            await this.moveTo(targetItem.position.x, targetItem.position.y, targetItem.position.z);
+
+            // Wait for item to be collected
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            this.emit('itemCollected', { item: targetItem });
+            return {
+                success: true,
+                quantity: 1,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    /**
+     * Use an item from inventory
+     */
+    public async useItem(itemType: string): Promise<ItemInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
+        }
+
+        const startTime = Date.now();
+
+        try {
+            const item = this.findItemInInventory(itemType);
+            if (!item) {
+                return {
+                    success: false,
+                    error: `Item ${itemType} not found in inventory`,
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Equip the item
+            await this.equipItem(itemType);
+
+            // Use the item
+            this.bot!.activateItem();
+
+            this.emit('itemUsed', { item: item });
+            return {
+                success: true,
+                item: item as any,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    /**
+     * Attack an entity
+     */
+    public async attackEntity(entityId: string): Promise<EntityInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
+        }
+
+        const startTime = Date.now();
+
+        try {
+            const entity = this.bot!.entities[entityId];
+            if (!entity) {
+                return {
+                    success: false,
+                    error: `Entity ${entityId} not found`,
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Move close to the entity
+            const distance = this.bot!.entity.position.distanceTo(entity.position);
+            if (distance > 4) {
+                await this.moveToEntity(entityId, { range: 3 });
+            }
+
+            // Attack the entity
+            await this.bot!.attack(entity);
+
+            this.emit('entityAttacked', { entityId, entity });
+            return {
+                success: true,
+                entity,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    /**
+     * Interact with an entity (right-click)
+     */
+    public async interactWithEntity(entityId: string): Promise<EntityInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
+        }
+
+        const startTime = Date.now();
+
+        try {
+            const entity = this.bot!.entities[entityId];
+            if (!entity) {
+                return {
+                    success: false,
+                    error: `Entity ${entityId} not found`,
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Move close to the entity
+            const distance = this.bot!.entity.position.distanceTo(entity.position);
+            if (distance > 4) {
+                await this.moveToEntity(entityId, { range: 3 });
+            }
+
+            // Interact with the entity
+            await this.bot!.useOn(entity);
+
+            this.emit('entityInteracted', { entityId, entity });
+            return {
+                success: true,
+                entity,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    // ===================
+    // INVENTORY MANAGEMENT METHODS
+    // ===================
+
+    /**
+     * Find an item in the bot's inventory
+     */
+    public findItemInInventory(itemType: string): InventoryItem | null {
+        if (!this.bot) return null;
+
+        const item = this.bot.inventory.items().find(item => 
+            item.name === itemType || 
+            item.displayName === itemType ||
+            item.type === parseInt(itemType)
+        );
+
+        if (!item) return null;
+
+        return {
+            type: item.name,
+            name: item.displayName,
+            count: item.count,
+            slot: item.slot,
+            metadata: item.metadata
+        };
+    }
+
+    /**
+     * Equip an item in the bot's hand
+     */
+    public async equipItem(itemType: string): Promise<ItemInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
+        }
+
+        const startTime = Date.now();
+
+        try {
+            const item = this.bot!.inventory.items().find(item => 
+                item.name === itemType || 
+                item.displayName === itemType ||
+                item.type === parseInt(itemType)
+            );
+
+            if (!item) {
+                return {
+                    success: false,
+                    error: `Item ${itemType} not found in inventory`,
+                    duration: Date.now() - startTime
+                };
+            }
+
+            await this.bot!.equip(item, 'hand');
+
+            this.emit('itemEquipped', { item });
+            return {
+                success: true,
+                item: item as any,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    /**
+     * Craft an item using available materials
+     */
+    public async craftItem(itemType: string, options: CraftingOptions = {}): Promise<ItemInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
+        }
+
+        const startTime = Date.now();
+
+        try {
+            // Get item ID
+            const itemId = parseInt(itemType) || this.bot!.registry.itemsByName[itemType]?.id || 0;
+            const recipes = this.bot!.recipesFor(itemId, null, 1, null);
+            
+            if (recipes.length === 0) {
+                return {
+                    success: false,
+                    error: `No recipes found for ${itemType}`,
+                    duration: Date.now() - startTime
+                };
+            }
+
+            const recipe = recipes[0];
+            if (!recipe) {
+                return {
+                    success: false,
+                    error: 'Invalid recipe',
+                    duration: Date.now() - startTime
+                };
+            }
+
+            const count = options.count || 1;
+
+            // Check if we have enough materials - simplified check
+            if (options.requireAll && recipe.delta) {
+                // Basic check for required materials
+                const hasEnoughMaterials = Object.entries(recipe.delta).every(([slotId, quantity]) => {
+                    const requiredQuantity = Math.abs(quantity as unknown as number);
+                    const availableQuantity = this.bot!.inventory.count(parseInt(slotId), null);
+                    return availableQuantity >= requiredQuantity;
+                });
+
+                if (!hasEnoughMaterials) {
+                    return {
+                        success: false,
+                        error: 'Not enough materials for crafting',
+                        duration: Date.now() - startTime
+                    };
+                }
+            }
+
+            // Craft the item
+            const craftingTable = options.table ? this.findCraftingTable() : undefined;
+            await this.bot!.craft(recipe, count, craftingTable || undefined);
+
+            this.emit('itemCrafted', { itemType, count, recipe });
+            return {
+                success: true,
+                quantity: count,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    /**
+     * Deposit items in a chest
+     */
+    public async depositItemsInChest(chestPosition: BlockPosition, itemType?: string): Promise<ItemInteractionResult> {
+        if (!this.isReady()) {
+            throw new Error('Bot is not ready for interaction');
+        }
+
+        const startTime = Date.now();
+
+        try {
+            const chestPos = new Vec3(chestPosition.x, chestPosition.y, chestPosition.z);
+            const chestBlock = this.bot!.blockAt(chestPos);
+
+            if (!chestBlock || !chestBlock.name.includes('chest')) {
+                return {
+                    success: false,
+                    error: 'No chest found at the specified position',
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Open the chest
+            const chest = await this.bot!.openChest(chestBlock);
+
+            // Find items to deposit
+            const itemsToDeposit = itemType 
+                ? this.bot!.inventory.items().filter(item => 
+                    item.name === itemType || item.displayName === itemType
+                )
+                : this.bot!.inventory.items();
+
+            if (itemsToDeposit.length === 0) {
+                chest.close();
+                return {
+                    success: false,
+                    error: 'No items to deposit',
+                    duration: Date.now() - startTime
+                };
+            }
+
+            // Deposit items
+            let totalDeposited = 0;
+            for (const item of itemsToDeposit) {
+                await chest.deposit(item.type, item.metadata, item.count);
+                totalDeposited += item.count;
+            }
+
+            chest.close();
+
+            this.emit('itemsDeposited', { chestPosition, itemType, count: totalDeposited });
+            return {
+                success: true,
+                quantity: totalDeposited,
+                duration: Date.now() - startTime
+            };
+
+        } catch (error) {
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                duration: Date.now() - startTime
+            };
+        }
+    }
+
+    // ===================
+    // UTILITY METHODS
+    // ===================
+
+    /**
+     * Get nearby entities based on filter criteria
+     */
+    public getNearbyEntities(filter: EntityFilter = {}): Entity[] {
+        if (!this.bot) return [];
+
+        const entities = Object.values(this.bot.entities);
+        const maxDistance = filter.maxDistance || 16;
+
+        return entities.filter(entity => {
+            // Distance check
+            const distance = entity.position.distanceTo(this.bot!.entity.position);
+            if (distance > maxDistance) return false;
+
+            // Type filter
+            if (filter.type && entity.name !== filter.type) return false;
+
+            // Name filter
+            if (filter.name && entity.displayName !== filter.name) return false;
+
+            // Category filters
+            if (filter.hostile && !this.isHostileEntity(entity)) return false;
+            if (filter.player && entity.type !== 'player') return false;
+            if (filter.mob && entity.type === 'player') return false;
+            if (filter.item && entity.name !== 'item') return false;
+
+            return true;
+        });
+    }
+
+    /**
+     * Get nearby blocks of a specific type
+     */
+    public getNearbyBlocks(blockType: string, maxDistance: number = 16): Vec3[] {
+        if (!this.bot) return [];
+
+        const blocks: Vec3[] = [];
+        const botPos = this.bot.entity.position;
+
+        for (let x = -maxDistance; x <= maxDistance; x++) {
+            for (let y = -maxDistance; y <= maxDistance; y++) {
+                for (let z = -maxDistance; z <= maxDistance; z++) {
+                    const pos = botPos.offset(x, y, z);
+                    const block = this.bot.blockAt(pos);
+                    
+                    if (block && block.name === blockType) {
+                        blocks.push(pos);
+                    }
+                }
+            }
+        }
+
+        return blocks;
+    }
+
+    /**
+     * Get bot's current inventory as an array of InventoryItem
+     */
+    public getInventory(): InventoryItem[] {
+        if (!this.bot) return [];
+
+        return this.bot.inventory.items().map(item => ({
+            type: item.name,
+            name: item.displayName,
+            count: item.count,
+            slot: item.slot,
+            metadata: item.metadata
+        }));
+    }
+
+    /**
+     * Auto-equip the best tool for breaking a block
+     */
+    private async autoEquipBestTool(block: Block): Promise<void> {
+        if (!this.bot) return;
+
+        const tools = this.bot.inventory.items().filter(item => 
+            item.name.includes('pickaxe') || 
+            item.name.includes('shovel') || 
+            item.name.includes('axe') || 
+            item.name.includes('hoe')
+        );
+
+        if (tools.length === 0) return;
+
+        // Simple tool selection logic
+        let bestTool = tools[0];
         
-        return true;
+        // Select appropriate tool based on block type
+        if (block.name.includes('stone') || block.name.includes('ore')) {
+            bestTool = tools.find(tool => tool.name.includes('pickaxe')) || bestTool;
+        } else if (block.name.includes('dirt') || block.name.includes('sand')) {
+            bestTool = tools.find(tool => tool.name.includes('shovel')) || bestTool;
+        } else if (block.name.includes('wood') || block.name.includes('log')) {
+            bestTool = tools.find(tool => tool.name.includes('axe')) || bestTool;
+        }
+
+        if (bestTool) {
+            try {
+                await this.bot.equip(bestTool, 'hand');
+            } catch (error) {
+                // Ignore equip errors
+            }
+        }
+    }
+
+    /**
+     * Find a crafting table block nearby
+     */
+    private findCraftingTable(): Block | null {
+        if (!this.bot) return null;
+
+        const tables = this.getNearbyBlocks('crafting_table', 5);
+        if (tables.length === 0) return null;
+
+        const tablePos = tables[0];
+        if (tablePos) {
+            return this.bot.blockAt(tablePos);
+        }
+
+        return null;
+    }
+
+    /**
+     * Check if an entity is hostile
+     */
+    private isHostileEntity(entity: Entity): boolean {
+        const hostileTypes = [
+            'zombie', 'skeleton', 'spider', 'creeper', 'enderman', 
+            'witch', 'blaze', 'ghast', 'slime', 'magma_cube',
+            'phantom', 'husk', 'stray', 'wither_skeleton'
+        ];
+
+        return hostileTypes.includes(entity.name || '');
     }
 
     // ===================
