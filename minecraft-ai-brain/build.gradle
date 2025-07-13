@@ -24,12 +24,10 @@ dependencies {
     // JSON processing
     implementation 'com.google.code.gson:gson:2.10.1'
     
-    // WebSocket communication
-    implementation 'org.java-websocket:Java-WebSocket:1.5.4'
-    
-    // Logging
-    implementation 'org.slf4j:slf4j-api:2.0.9'
-    implementation 'ch.qos.logback:logback-classic:1.4.11'
+    // WebSocket communication - exclude SLF4J to avoid conflicts with Bukkit's logging
+    implementation('org.java-websocket:Java-WebSocket:1.5.4') {
+        exclude group: 'org.slf4j'
+    }
     
     // Testing
     testImplementation platform('org.junit:junit-bom:5.10.0')
@@ -47,8 +45,6 @@ shadowJar {
     archiveClassifier.set('')
     relocate 'com.google.gson', 'com.minecraft.ai.brain.libs.gson'
     relocate 'org.java_websocket', 'com.minecraft.ai.brain.libs.websocket'
-    relocate 'ch.qos.logback', 'com.minecraft.ai.brain.libs.logback'
-    relocate 'org.slf4j', 'com.minecraft.ai.brain.libs.slf4j'
     
     manifest {
         attributes(
