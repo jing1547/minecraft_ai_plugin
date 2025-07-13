@@ -183,11 +183,11 @@ public class PlayerInteractionManager {
      * Start background monitoring tasks
      */
     private void startBackgroundTasks() {
-        // Proximity check task (every 2 seconds)
-        proximityCheckTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, 
+        // Proximity check task (every 2 seconds) - MUST run on main thread due to getNearbyEntities
+        proximityCheckTask = Bukkit.getScheduler().runTaskTimer(plugin, 
             this::performProximityCheck, 40L, 40L);
         
-        // Cleanup task (every 5 minutes)
+        // Cleanup task (every 5 minutes) - can run async since it doesn't use Bukkit API
         cleanupTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, 
             this::performCleanup, 6000L, 6000L);
         
@@ -421,6 +421,12 @@ public class PlayerInteractionManager {
                 
                 if (playerLoc == null) continue;
                 
+                // Verify player is still online and world is valid
+                Player player = Bukkit.getPlayer(playerId);
+                if (player == null || !player.isOnline() || playerLoc.getWorld() == null) {
+                    continue;
+                }
+                
                 // Find nearby players
                 Set<UUID> nearbyPlayerIds = getPlayersInRadius(playerLoc, interactionRadius)
                         .stream()
@@ -432,13 +438,17 @@ public class PlayerInteractionManager {
                 
                 // Find nearby entities (if enabled)
                 if (configManager.getConfig().getBoolean("player-interaction.track-entities", true)) {
-                    Set<Entity> entities = playerLoc.getWorld()
-                            .getNearbyEntities(playerLoc, interactionRadius, interactionRadius, interactionRadius)
-                            .stream()
-                            .filter(entity -> !(entity instanceof Player))
-                            .collect(Collectors.toSet());
-                    
-                    nearbyEntities.put(playerId, entities);
+                    try {
+                        Set<Entity> entities = playerLoc.getWorld()
+                                .getNearbyEntities(playerLoc, interactionRadius, interactionRadius, interactionRadius)
+                                .stream()
+                                .filter(entity -> !(entity instanceof Player))
+                                .collect(Collectors.toSet());
+                        
+                        nearbyEntities.put(playerId, entities);
+                    } catch (Exception entityException) {
+                        logger.warning("Error getting nearby entities for player " + activity.getPlayerName() + ": " + entityException.getMessage());
+                    }
                 }
             }
         } catch (Exception e) {
