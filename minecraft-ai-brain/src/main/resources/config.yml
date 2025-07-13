@@ -54,6 +54,24 @@ speech:
     code: "ko-KR"                  # Language code for speech recognition
   sample:
     rate: 16000                    # Audio sample rate in Hz
+
+# Audio Capture Configuration
+audio:
+  enabled: false
+  capture:
+    sample-rate: 16000             # Audio sample rate in Hz
+    bits-per-sample: 16            # Bits per audio sample
+    channels: 1                    # Number of audio channels (1 = mono)
+    buffer-size: 4096              # Audio buffer size in bytes
+  processing:
+    noise-reduction: true          # Enable noise reduction
+    volume-normalization: true     # Enable volume normalization
+    high-pass-filter: false        # Enable high-pass filter
+    voice-activity-detection: true # Enable voice activity detection
+  push-to-talk:
+    enabled: false                 # Enable push-to-talk functionality
+    key: "V"                       # Push-to-talk key (client-side)
+    hold-time: 100                 # Minimum hold time in milliseconds
   
   # Natural language processing
   nlp:
