@@ -44,6 +44,16 @@ ai:
     stt-provider: "google"         # speech-to-text provider
     tts-provider: "google"         # text-to-speech provider
     voice-activation-threshold: 0.7
+
+# Speech-to-Text Configuration (Google Cloud)
+speech:
+  enabled: false
+  credentials:
+    path: ""                       # Path to Google Cloud service account JSON file
+  language:
+    code: "ko-KR"                  # Language code for speech recognition
+  sample:
+    rate: 16000                    # Audio sample rate in Hz
   
   # Natural language processing
   nlp:
