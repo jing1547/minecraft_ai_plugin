@@ -1,0 +1,358 @@
+package com.minecraft.ai.brain.service;
+
+import com.minecraft.ai.brain.utils.Logger;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * TextToSpeechService provides text-to-speech conversion with emotion mapping capabilities.
+ * This is the core implementation that will use Google Cloud Text-to-Speech API.
+ */
+public class TextToSpeechService implements Service {
+    private static final String LOG_PREFIX = "[TextToSpeechService] ";
+    private static final String SERVICE_ID = "text-to-speech";
+    private static final String SERVICE_NAME = "Text-to-Speech Service";
+    
+    private final JavaPlugin plugin;
+    private final Logger logger;
+    private volatile State currentState = State.NOT_INITIALIZED;
+    private ServiceHealth currentHealth;
+    private long startTime = -1;
+    
+    // Emotion mapping configuration
+    private final Map<String, String> emotionVoiceMapping = new HashMap<>();
+    private final Map<String, Double> emotionPitchMapping = new HashMap<>();
+    private final Map<String, Double> emotionRateMapping = new HashMap<>();
+    
+    // Cache for recent synthesis requests
+    private final Map<String, byte[]> audioCache = new ConcurrentHashMap<>();
+    private final int maxCacheSize = 100;
+    
+    // Configuration cache
+    private String defaultLanguageCode = "ko-KR";
+    private String defaultVoiceName = "ko-KR-Neural2-C";
+    private String audioEncoding = "MP3";
+    private double sampleRateHertz = 22050.0;
+    
+    public TextToSpeechService(JavaPlugin plugin) {
+        this.plugin = plugin;
+        this.logger = new Logger(plugin);
+        this.currentHealth = ServiceHealth.unknown("Service not initialized");
+        initializeEmotionMappings();
+    }
+    
+    @Override
+    public String getServiceId() {
+        return SERVICE_ID;
+    }
+    
+    @Override
+    public String getServiceName() {
+        return SERVICE_NAME;
+    }
+    
+    @Override
+    public State getState() {
+        return currentState;
+    }
+    
+    @Override
+    public Priority getPriority() {
+        return Priority.NORMAL;
+    }
+    
+    @Override
+    public List<String> getDependencies() {
+        return Arrays.asList(); // No dependencies for now
+    }
+    
+    @Override
+    public ServiceHealth getHealth() {
+        return currentHealth;
+    }
+    
+    @Override
+    public Map<String, Object> getMetrics() {
+        Map<String, Object> metrics = new HashMap<>();
+        metrics.put("cache_size", audioCache.size());
+        metrics.put("max_cache_size", maxCacheSize);
+        metrics.put("emotion_mappings_count", emotionVoiceMapping.size());
+        metrics.put("state", currentState.name());
+        metrics.put("uptime_ms", getUptime());
+        metrics.put("enabled", isEnabled());
+        return metrics;
+    }
+    
+    @Override
+    public Map<String, Object> getConfiguration() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("language_code", defaultLanguageCode);
+        config.put("voice_name", defaultVoiceName);
+        config.put("audio_encoding", audioEncoding);
+        config.put("sample_rate", sampleRateHertz);
+        config.put("enabled", isEnabled());
+        config.put("available_emotions", getAvailableEmotions());
+        return config;
+    }
+    
+    @Override
+    public void onConfigurationChange(Map<String, Object> newConfig) {
+        logger.info(LOG_PREFIX + "Configuration change received");
+        // Handle configuration changes if needed
+        // TODO: Implement configuration update logic
+    }
+    
+    @Override
+    public boolean isEnabled() {
+        return TTSConfig.isEnabled();
+    }
+    
+    @Override
+    public long getStartTime() {
+        return startTime;
+    }
+    
+    @Override
+    public long getUptime() {
+        return startTime > 0 ? System.currentTimeMillis() - startTime : 0;
+    }
+    
+    @Override
+    public void initialize(Map<String, Service> dependencies) throws ServiceException {
+        if (currentState != State.NOT_INITIALIZED) {
+            return;
+        }
+        
+        try {
+            currentState = State.INITIALIZED;
+            logger.info(LOG_PREFIX + "Initializing TextToSpeech service...");
+            
+            // Check if TTS configuration is initialized
+            if (!TTSConfig.isInitialized()) {
+                throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.INITIALIZATION_FAILED, 
+                    "TTSConfig not initialized. Call TTSConfig.initialize() first.");
+            }
+            
+            if (!TTSConfig.isEnabled()) {
+                logger.info(LOG_PREFIX + "TTS is disabled in configuration");
+                currentHealth = ServiceHealth.degraded("TTS disabled in configuration");
+                return;
+            }
+            
+            // Initialize Google Cloud TTS client (placeholder for now)
+            // TODO: Implement actual TTS client initialization
+            
+            currentHealth = ServiceHealth.healthy("TTS service initialized successfully");
+            logger.info(LOG_PREFIX + "TextToSpeech service initialized successfully");
+            
+        } catch (Exception e) {
+            currentState = State.FAILED;
+            currentHealth = ServiceHealth.unhealthy("Initialization failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.INITIALIZATION_FAILED, 
+                "Failed to initialize TextToSpeech service", e);
+        }
+    }
+    
+    @Override
+    public void start() throws ServiceException {
+        if (currentState != State.INITIALIZED) {
+            initialize(new HashMap<>());
+        }
+        
+        if (currentState == State.RUNNING) {
+            return;
+        }
+        
+        try {
+            currentState = State.STARTING;
+            logger.info(LOG_PREFIX + "Starting TextToSpeech service...");
+            
+            // Test TTS connection (placeholder)
+            // TODO: Implement actual TTS connection test
+            
+            currentState = State.RUNNING;
+            startTime = System.currentTimeMillis();
+            currentHealth = ServiceHealth.healthy("TTS service running");
+            logger.info(LOG_PREFIX + "TextToSpeech service started successfully");
+            
+        } catch (Exception e) {
+            currentState = State.FAILED;
+            currentHealth = ServiceHealth.unhealthy("Start failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.STARTUP_FAILED, 
+                "Failed to start TextToSpeech service", e);
+        }
+    }
+    
+    @Override
+    public void stop() throws ServiceException {
+        if (currentState != State.RUNNING) {
+            return;
+        }
+        
+        try {
+            currentState = State.STOPPING;
+            logger.info(LOG_PREFIX + "Stopping TextToSpeech service...");
+            
+            // Clear cache
+            audioCache.clear();
+            
+            // Close TTS client (placeholder)
+            // TODO: Implement actual TTS client shutdown
+            
+            currentState = State.STOPPED;
+            startTime = -1;
+            currentHealth = ServiceHealth.unknown("Service stopped");
+            logger.info(LOG_PREFIX + "TextToSpeech service stopped successfully");
+            
+        } catch (Exception e) {
+            currentState = State.FAILED;
+            currentHealth = ServiceHealth.unhealthy("Stop failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SHUTDOWN_FAILED, 
+                "Failed to stop TextToSpeech service", e);
+        }
+    }
+    
+    /**
+     * Initialize emotion mappings for voices, pitch, and speaking rate
+     */
+    private void initializeEmotionMappings() {
+        // Voice mappings (Korean Neural voices)
+        emotionVoiceMapping.put("happy", "ko-KR-Neural2-B");      // Bright female voice
+        emotionVoiceMapping.put("sad", "ko-KR-Neural2-D");        // Deeper male voice
+        emotionVoiceMapping.put("angry", "ko-KR-Neural2-A");      // Forceful male voice
+        emotionVoiceMapping.put("fearful", "ko-KR-Neural2-C");    // Neutral voice
+        emotionVoiceMapping.put("excited", "ko-KR-Neural2-B");    // Energetic female voice
+        
+        // Pitch adjustments (semitones)
+        emotionPitchMapping.put("happy", 4.0);
+        emotionPitchMapping.put("excited", 5.0);
+        emotionPitchMapping.put("sad", -2.0);
+        emotionPitchMapping.put("angry", 3.0);
+        emotionPitchMapping.put("fearful", 1.5);
+        
+        // Speaking rate adjustments (multiplier)
+        emotionRateMapping.put("happy", 1.2);
+        emotionRateMapping.put("excited", 1.3);
+        emotionRateMapping.put("sad", 0.8);
+        emotionRateMapping.put("angry", 1.3);
+        emotionRateMapping.put("fearful", 1.1);
+        
+        logger.info(LOG_PREFIX + "Initialized emotion mappings for " + emotionVoiceMapping.size() + " emotions");
+    }
+    
+    /**
+     * Synthesize speech from text with optional emotion (placeholder implementation)
+     */
+    public byte[] synthesizeSpeech(String text) throws ServiceException {
+        return synthesizeSpeech(text, null);
+    }
+    
+    /**
+     * Synthesize speech from text with specified emotion (placeholder implementation)
+     */
+    public byte[] synthesizeSpeech(String text, String emotion) throws ServiceException {
+        if (currentState != State.RUNNING) {
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "TextToSpeech service is not running");
+        }
+        
+        if (text == null || text.trim().isEmpty()) {
+            throw new IllegalArgumentException("Text cannot be null or empty");
+        }
+        
+        try {
+            // Check cache first
+            String cacheKey = text + "|" + (emotion != null ? emotion : "default");
+            if (audioCache.containsKey(cacheKey)) {
+                logger.info(LOG_PREFIX + "Retrieved audio from cache for: " + 
+                           text.substring(0, Math.min(20, text.length())));
+                return audioCache.get(cacheKey);
+            }
+            
+            // TODO: Implement actual Google Cloud TTS synthesis
+            // For now, return placeholder data
+            logger.info(LOG_PREFIX + "Synthesizing speech with " + 
+                       (emotion != null ? emotion : "default") + " emotion: " + 
+                       text.substring(0, Math.min(50, text.length())) + 
+                       (text.length() > 50 ? "..." : ""));
+            
+            // Placeholder: return empty byte array
+            byte[] audioData = new byte[0];
+            
+            // Cache the result (with size limit)
+            if (audioCache.size() < maxCacheSize) {
+                audioCache.put(cacheKey, audioData);
+            }
+            
+            logger.info(LOG_PREFIX + "Speech synthesis completed (placeholder), audio size: " + 
+                       audioData.length + " bytes");
+            return audioData;
+            
+        } catch (Exception e) {
+            currentHealth = ServiceHealth.degraded("Synthesis failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "Failed to synthesize speech: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Get available emotion types
+     */
+    public String[] getAvailableEmotions() {
+        return emotionVoiceMapping.keySet().toArray(new String[0]);
+    }
+    
+    /**
+     * Check if a specific emotion is supported
+     */
+    public boolean isEmotionSupported(String emotion) {
+        return emotion != null && emotionVoiceMapping.containsKey(emotion.toLowerCase());
+    }
+    
+    /**
+     * Get emotion-specific voice name
+     */
+    public String getEmotionVoice(String emotion) {
+        return emotionVoiceMapping.getOrDefault(emotion != null ? emotion.toLowerCase() : null, defaultVoiceName);
+    }
+    
+    /**
+     * Get emotion-specific pitch adjustment
+     */
+    public double getEmotionPitch(String emotion) {
+        return emotionPitchMapping.getOrDefault(emotion != null ? emotion.toLowerCase() : null, 0.0);
+    }
+    
+    /**
+     * Get emotion-specific speaking rate adjustment
+     */
+    public double getEmotionRate(String emotion) {
+        return emotionRateMapping.getOrDefault(emotion != null ? emotion.toLowerCase() : null, 1.0);
+    }
+    
+    /**
+     * Clear the audio cache
+     */
+    public void clearCache() {
+        audioCache.clear();
+        logger.info(LOG_PREFIX + "Audio cache cleared");
+    }
+    
+    /**
+     * Get current cache size
+     */
+    public int getCacheSize() {
+        return audioCache.size();
+    }
+    
+    /**
+     * Get service statistics
+     */
+    public String getServiceStats() {
+        return String.format("TTS Service Stats - Running: %s, Cache Size: %d/%d, Available Emotions: %d", 
+                           (currentState == State.RUNNING), audioCache.size(), maxCacheSize, 
+                           emotionVoiceMapping.size());
+    }
+} 
