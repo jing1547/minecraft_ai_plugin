@@ -26,9 +26,9 @@ public class TextToSpeechService implements Service {
     private final Map<String, Double> emotionPitchMapping = new HashMap<>();
     private final Map<String, Double> emotionRateMapping = new HashMap<>();
     
-    // Cache for recent synthesis requests
-    private final Map<String, byte[]> audioCache = new ConcurrentHashMap<>();
-    private final int maxCacheSize = 100;
+    // Advanced cache and rate limiting
+    private TTSCacheManager cacheManager;
+    private APIRateLimiter rateLimiter;
     
     // Configuration cache
     private String defaultLanguageCode = "ko-KR";
@@ -76,8 +76,22 @@ public class TextToSpeechService implements Service {
     @Override
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
-        metrics.put("cache_size", audioCache.size());
-        metrics.put("max_cache_size", maxCacheSize);
+        
+        // Cache metrics
+        if (cacheManager != null) {
+            Map<String, Object> cacheStats = cacheManager.getCacheStatistics();
+            metrics.putAll(cacheStats);
+        } else {
+            metrics.put("cache_size", 0);
+            metrics.put("max_cache_size", 0);
+        }
+        
+        // Rate limiter metrics
+        if (rateLimiter != null) {
+            Map<String, Object> rateLimiterStats = rateLimiter.getStatistics();
+            rateLimiterStats.forEach((key, value) -> metrics.put("rate_limiter_" + key, value));
+        }
+        
         metrics.put("emotion_mappings_count", emotionVoiceMapping.size());
         metrics.put("state", currentState.name());
         metrics.put("uptime_ms", getUptime());
@@ -144,6 +158,10 @@ public class TextToSpeechService implements Service {
             // Initialize Google Cloud TTS client (placeholder for now)
             // TODO: Implement actual TTS client initialization
             
+            // Initialize advanced caching and rate limiting
+            cacheManager = new TTSCacheManager(this, 200, 3600000L); // 200 items, 1 hour expiry
+            rateLimiter = APIRateLimiter.forGoogleCloudTTS(); // 600 requests per minute
+            
             currentHealth = ServiceHealth.healthy("TTS service initialized successfully");
             logger.info(LOG_PREFIX + "TextToSpeech service initialized successfully");
             
@@ -196,7 +214,9 @@ public class TextToSpeechService implements Service {
             logger.info(LOG_PREFIX + "Stopping TextToSpeech service...");
             
             // Clear cache
-            audioCache.clear();
+            if (cacheManager != null) {
+                cacheManager.clearCache();
+            }
             
             // Close TTS client (placeholder)
             // TODO: Implement actual TTS client shutdown
@@ -263,38 +283,52 @@ public class TextToSpeechService implements Service {
         }
         
         try {
-            // Check cache first
-            String cacheKey = text + "|" + (emotion != null ? emotion : "default");
-            if (audioCache.containsKey(cacheKey)) {
-                logger.info(LOG_PREFIX + "Retrieved audio from cache for: " + 
-                           text.substring(0, Math.min(20, text.length())));
-                return audioCache.get(cacheKey);
+            // Use advanced cache manager for retrieval and storage
+            if (cacheManager != null) {
+                return cacheManager.getAudio(text, emotion != null ? emotion : "neutral");
+            } else {
+                // Fallback to direct synthesis if cache manager is not available
+                return synthesizeDirectly(text, emotion);
             }
-            
-            // TODO: Implement actual Google Cloud TTS synthesis
-            // For now, return placeholder data
-            logger.info(LOG_PREFIX + "Synthesizing speech with " + 
-                       (emotion != null ? emotion : "default") + " emotion: " + 
-                       text.substring(0, Math.min(50, text.length())) + 
-                       (text.length() > 50 ? "..." : ""));
-            
-            // Placeholder: return empty byte array
-            byte[] audioData = new byte[0];
-            
-            // Cache the result (with size limit)
-            if (audioCache.size() < maxCacheSize) {
-                audioCache.put(cacheKey, audioData);
-            }
-            
-            logger.info(LOG_PREFIX + "Speech synthesis completed (placeholder), audio size: " + 
-                       audioData.length + " bytes");
-            return audioData;
             
         } catch (Exception e) {
             currentHealth = ServiceHealth.degraded("Synthesis failed: " + e.getMessage());
             throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
                 "Failed to synthesize speech: " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Directly synthesize speech without caching (used internally by cache manager)
+     */
+    public byte[] synthesizeDirectly(String text, String emotion) throws ServiceException {
+        // Check rate limiting before making API call
+        if (rateLimiter != null && !rateLimiter.allowRequest()) {
+            long waitTime = rateLimiter.getTimeToNextAvailableSlot();
+            logger.warning(LOG_PREFIX + "Rate limit exceeded. Next slot available in " + waitTime + "ms");
+            
+            // For now, throw exception - in production might want to queue or wait
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.HEALTH_CHECK_FAILED,
+                "Rate limit exceeded. Try again in " + waitTime + "ms");
+        }
+        
+        // TODO: Implement actual Google Cloud TTS synthesis
+        // For now, return placeholder data
+        logger.info(LOG_PREFIX + "Synthesizing speech directly with " + 
+                   (emotion != null ? emotion : "default") + " emotion: " + 
+                   text.substring(0, Math.min(50, text.length())) + 
+                   (text.length() > 50 ? "..." : ""));
+        
+        // Simulate API call delay
+        try {
+            Thread.sleep(100); // Simulate network delay
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        // Placeholder: return empty byte array
+        logger.info(LOG_PREFIX + "Speech synthesis completed (placeholder), audio size: 0 bytes");
+        return new byte[0];
     }
     
     /**
@@ -574,7 +608,9 @@ public class TextToSpeechService implements Service {
      * Clear the audio cache
      */
     public void clearCache() {
-        audioCache.clear();
+        if (cacheManager != null) {
+            cacheManager.clearCache();
+        }
         logger.info(LOG_PREFIX + "Audio cache cleared");
     }
     
@@ -582,7 +618,7 @@ public class TextToSpeechService implements Service {
      * Get current cache size
      */
     public int getCacheSize() {
-        return audioCache.size();
+        return cacheManager != null ? cacheManager.getCacheSize() : 0;
     }
     
     /**
