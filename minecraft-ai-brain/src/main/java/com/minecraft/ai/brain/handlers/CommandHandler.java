@@ -290,32 +290,44 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
      * Start voice processing
      */
     private CommandManager.CommandResult startVoiceProcessing(CommandSender sender) {
-        // TODO: Implement voice processing start
-        return CommandManager.CommandResult.info("Voice processing is not yet implemented.");
+        if (handleVoiceStart(sender, new String[0])) {
+            return CommandManager.CommandResult.success("Voice processing started successfully.");
+        } else {
+            return CommandManager.CommandResult.error("Failed to start voice processing.");
+        }
     }
     
     /**
      * Stop voice processing
      */
     private CommandManager.CommandResult stopVoiceProcessing(CommandSender sender) {
-        // TODO: Implement voice processing stop
-        return CommandManager.CommandResult.info("Voice processing is not yet implemented.");
+        if (handleVoiceStop(sender, new String[0])) {
+            return CommandManager.CommandResult.success("Voice processing stopped successfully.");
+        } else {
+            return CommandManager.CommandResult.error("Failed to stop voice processing.");
+        }
     }
     
     /**
      * Test voice processing
      */
     private CommandManager.CommandResult testVoiceProcessing(CommandSender sender) {
-        // TODO: Implement voice processing test
-        return CommandManager.CommandResult.info("Voice processing test is not yet implemented.");
+        if (handleVoiceTest(sender, new String[0])) {
+            return CommandManager.CommandResult.success("Voice processing test completed successfully.");
+        } else {
+            return CommandManager.CommandResult.error("Voice processing test failed.");
+        }
     }
     
     /**
      * Get voice status
      */
     private CommandManager.CommandResult getVoiceStatus(CommandSender sender) {
-        // TODO: Implement voice status
-        return CommandManager.CommandResult.info("Voice processing is not yet implemented.");
+        if (handleVoiceStatus(sender, new String[0])) {
+            return CommandManager.CommandResult.success("Voice status retrieved successfully.");
+        } else {
+            return CommandManager.CommandResult.error("Failed to get voice status.");
+        }
     }
     
     /**
