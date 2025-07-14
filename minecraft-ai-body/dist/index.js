@@ -296,6 +296,12 @@ class MinecraftAIBodyApp {
     }
     async start() {
         console.log('🚀 Starting Minecraft AI Body...');
+        console.log('📋 Configuration:');
+        console.log(`   • Minecraft Server: ${this.config.minecraft.host}:${this.config.minecraft.port}`);
+        console.log(`   • Username: ${this.config.minecraft.username}`);
+        console.log(`   • Version: ${this.config.minecraft.version}`);
+        console.log(`   • Auth: ${this.config.minecraft.auth}`);
+        console.log(`   • WebSocket Server: ${this.config.websocket.host}:${this.config.websocket.port}`);
         if (this.testMode) {
             console.log('🧪 Running in TEST MODE - no server connections required');
             console.log('📝 This mode demonstrates the AI Body capabilities without actual servers');
@@ -313,12 +319,20 @@ class MinecraftAIBodyApp {
         }
         catch (error) {
             console.error('❌ Failed to start Minecraft AI Body:', error);
-            if (error instanceof Error && error.message.includes('ECONNREFUSED')) {
-                console.log('\n💡 Connection failed! Try running in test mode:');
-                console.log('   npm run test-mode');
-                console.log('   or');
-                console.log('   TEST_MODE=true npm start');
-            }
+            console.log('\n🔧 해결 방법:');
+            console.log('1. 📺 Minecraft 서버가 실행 중인지 확인하세요:');
+            console.log(`   - 서버 주소: ${this.config.minecraft.host}:${this.config.minecraft.port}`);
+            console.log('   - Minecraft 서버를 시작하거나 올바른 주소를 설정하세요');
+            console.log('');
+            console.log('2. 🧪 또는 테스트 모드로 실행하세요 (서버 연결 없이):');
+            console.log('   npm run test-mode');
+            console.log('   또는');
+            console.log('   TEST_MODE=true npm start');
+            console.log('');
+            console.log('3. 🔧 환경변수로 다른 서버 설정:');
+            console.log('   set MINECRAFT_HOST=your-server-ip');
+            console.log('   set MINECRAFT_PORT=25565');
+            console.log('   set BOT_USERNAME=YourBotName');
             process.exit(1);
         }
     }
@@ -428,10 +442,6 @@ process.on('unhandledRejection', async (reason, promise) => {
 });
 app.start().catch(error => {
     console.error('💥 Failed to start application:', error);
-    process.exit(1);
-});
-app.start().catch((error) => {
-    console.error('❌ Fatal error:', error);
     process.exit(1);
 });
 //# sourceMappingURL=index.js.map

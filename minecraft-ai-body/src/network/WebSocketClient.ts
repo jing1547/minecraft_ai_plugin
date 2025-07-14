@@ -151,9 +151,9 @@ export class WebSocketClient {
    * 메시지 수신 처리
    */
   private onMessage(data: any): void {
+    let messageData: string = '';
+    
     try {
-      let messageData: string;
-      
       if (typeof data === 'string') {
         messageData = data;
       } else if (Buffer.isBuffer(data)) {
@@ -164,8 +164,21 @@ export class WebSocketClient {
         messageData = String(data);
       }
       
+      // 디버깅을 위해 원본 메시지 로깅
+      this.log(`Raw message received: ${messageData}`);
+      
+      // ping/pong 메시지는 프로토콜 외부의 연결 유지 메시지
+      const parsed = JSON.parse(messageData);
+      if (parsed.type === 'ping') {
+        this.log('Received ping, sending pong');
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+        }
+        return;
+      }
+      
       const message = MessageSerializer.deserialize(messageData);
-      this.log(`Received message: ${message.type}`);
+      this.log(`Parsed message: ${message.type}`);
       
       // 연결 확인 메시지 처리
       if (message.type === MessageType.STATE && message.payload?.stateType === 'connection') {
@@ -176,6 +189,7 @@ export class WebSocketClient {
       this.emit('message', message);
     } catch (error) {
       this.log(`Failed to parse message: ${error}`);
+      this.log(`Raw message that failed: ${messageData}`);
       this.emit('error', error as Error);
     }
   }

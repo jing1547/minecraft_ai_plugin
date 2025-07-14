@@ -209,5 +209,13 @@ export function isValidUUID(uuid: string): boolean {
 
 export function isValidISO8601(dateString: string): boolean {
     const date = new Date(dateString);
-    return !isNaN(date.getTime()) && dateString === date.toISOString();
+    if (isNaN(date.getTime())) {
+        return false;
+    }
+    
+    // Java는 나노초까지 포함한 ISO 8601 형식을 보낼 수 있음
+    // 예: "2025-07-14T03:06:54.663887700Z"
+    // JavaScript는 밀리초까지만 지원하므로 더 유연한 검증 사용
+    const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z?$/;
+    return iso8601Regex.test(dateString);
 } 
