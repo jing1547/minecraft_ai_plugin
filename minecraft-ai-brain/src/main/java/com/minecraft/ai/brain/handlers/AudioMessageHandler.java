@@ -2,6 +2,7 @@ package com.minecraft.ai.brain.handlers;
 
 import com.minecraft.ai.brain.service.AudioProcessor;
 import com.minecraft.ai.brain.service.SpeechToTextConfig;
+import com.minecraft.ai.brain.service.SpeechRecognitionService;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.bukkit.Bukkit;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
+import java.util.logging.Level;
 
 /**
  * Handles audio-related WebSocket messages from clients
@@ -23,6 +25,25 @@ public class AudioMessageHandler {
     
     // Audio session management
     private final Map<UUID, AudioSession> audioSessions = new ConcurrentHashMap<>();
+    
+    // Speech recognition service
+    private SpeechRecognitionService speechRecognitionService;
+    
+    // Initialize Speech Recognition Service
+    public AudioMessageHandler() {
+        try {
+            if (SpeechToTextConfig.isEnabled()) {
+                this.speechRecognitionService = new SpeechRecognitionService();
+                this.speechRecognitionService.startProcessingQueue();
+                logger.info("SpeechRecognitionService initialized and started");
+            } else {
+                logger.info("Speech-to-Text is disabled in configuration");
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Failed to initialize SpeechRecognitionService", e);
+            this.speechRecognitionService = null;
+        }
+    }
     
     /**
      * Audio session data for a player
@@ -230,18 +251,56 @@ public class AudioMessageHandler {
                 return;
             }
             
-            // TODO: Implement actual Speech-to-Text processing
-            // This would involve:
-            // 1. Accumulating audio data until speech is complete
-            // 2. Sending to Google Cloud Speech-to-Text API
-            // 3. Processing the response
-            // 4. Triggering appropriate actions based on the recognized text
+            // Check if speech recognition service is available
+            if (speechRecognitionService == null) {
+                logger.warning("SpeechRecognitionService not available for player: " + player.getName());
+                return;
+            }
             
-            logger.info("Processing audio for STT for player: " + player.getName() + 
+            logger.fine("Processing audio for STT for player: " + player.getName() + 
                        " (data size: " + audioData.length + " bytes)");
             
+            // Process audio through speech recognition service
+            if (speechRecognitionService.queueAudio(audioData)) {
+                logger.fine("Audio queued for STT processing for player: " + player.getName());
+            } else {
+                logger.warning("Failed to queue audio for STT processing - queue may be full");
+            }
+            
+            // For immediate synchronous processing (alternative approach):
+            // String recognizedText = speechRecognitionService.recognizeSpeech(audioData);
+            // if (!recognizedText.isEmpty()) {
+            //     logger.info("Recognized speech from " + player.getName() + ": " + recognizedText);
+            //     handleRecognizedSpeech(player, recognizedText);
+            // }
+            
         } catch (Exception e) {
-            logger.severe("Error processing audio for STT: " + e.getMessage());
+            logger.log(Level.SEVERE, "Error processing audio for STT for player: " + player.getName(), e);
+        }
+    }
+    
+    /**
+     * Handle recognized speech text from a player
+     * @param player Player who spoke
+     * @param recognizedText Recognized speech text
+     */
+    private void handleRecognizedSpeech(Player player, String recognizedText) {
+        try {
+            logger.info("Handling recognized speech from " + player.getName() + ": '" + recognizedText + "'");
+            
+            // TODO: Integrate with AI conversation system
+            // This could involve:
+            // 1. Parsing the text for commands or natural language
+            // 2. Sending to AI conversation service for response generation
+            // 3. Executing game commands if it matches command patterns
+            // 4. Sending AI responses back through WebSocket or chat
+            
+            // For now, just broadcast to chat as a proof of concept
+            String message = "§7[STT] §f" + player.getName() + " said: §e" + recognizedText;
+            Bukkit.broadcastMessage(message);
+            
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error handling recognized speech from " + player.getName(), e);
         }
     }
     
@@ -288,6 +347,15 @@ public class AudioMessageHandler {
         JsonObject stats = new JsonObject();
         stats.addProperty("active_sessions", audioSessions.size());
         stats.addProperty("total_sessions", audioSessions.size());
+        stats.addProperty("stt_enabled", SpeechToTextConfig.isEnabled());
+        stats.addProperty("stt_service_available", speechRecognitionService != null);
+        
+        // Add STT service statistics if available
+        if (speechRecognitionService != null) {
+            var sttStats = speechRecognitionService.getStatistics();
+            stats.addProperty("stt_queue_size", sttStats.queueSize);
+            stats.addProperty("stt_processing", sttStats.isProcessing);
+        }
         
         // Calculate average audio level across all sessions
         double totalLevel = 0.0;
@@ -302,5 +370,23 @@ public class AudioMessageHandler {
         stats.addProperty("average_audio_level", sessionCount > 0 ? totalLevel / sessionCount : 0.0);
         
         return stats;
+    }
+    
+    /**
+     * Shutdown the audio message handler and clean up resources
+     */
+    public void shutdown() {
+        logger.info("Shutting down AudioMessageHandler");
+        
+        // Stop all active sessions
+        stopAllSessions();
+        
+        // Shutdown speech recognition service
+        if (speechRecognitionService != null) {
+            speechRecognitionService.shutdown();
+            speechRecognitionService = null;
+        }
+        
+        logger.info("AudioMessageHandler shutdown complete");
     }
 } 
