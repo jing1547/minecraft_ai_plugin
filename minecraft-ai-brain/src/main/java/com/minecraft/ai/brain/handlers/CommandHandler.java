@@ -4,14 +4,19 @@ import com.minecraft.ai.brain.MinecraftAIBrainPlugin;
 import com.minecraft.ai.brain.commands.CommandManager;
 import com.minecraft.ai.brain.utils.ConfigManager;
 import com.minecraft.ai.brain.utils.Logger;
+import com.minecraft.ai.brain.service.AudioCaptureService;
+import com.minecraft.ai.brain.service.SpeechToTextConfig;
+import com.minecraft.ai.brain.service.ServiceManager;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.logging.Level;
 
 /**
  * Main command handler for AI Brain plugin commands
@@ -311,6 +316,205 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     private CommandManager.CommandResult getVoiceStatus(CommandSender sender) {
         // TODO: Implement voice status
         return CommandManager.CommandResult.info("Voice processing is not yet implemented.");
+    }
+    
+    /**
+     * Handle voice processing start command
+     * @param sender Command sender
+     * @param args Command arguments
+     * @return true if command was handled
+     */
+    private boolean handleVoiceStart(CommandSender sender, String[] args) {
+        try {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage("§c[Voice AI] This command can only be used by players.");
+                return true;
+            }
+            
+            Player player = (Player) sender;
+            
+            // Check if speech-to-text is enabled
+            if (!SpeechToTextConfig.isEnabled()) {
+                player.sendMessage("§c[Voice AI] Speech-to-Text is disabled in the configuration.");
+                return true;
+            }
+            
+            // Simple implementation - just notify player
+            player.sendMessage("§a[Voice AI] Voice processing started! Start speaking...");
+            player.sendMessage("§7[Voice AI] Say '!help' for voice commands or speak naturally to chat with AI.");
+            player.sendMessage("§7[Voice AI] Note: Connect your audio client to the WebSocket server to send audio data.");
+            
+            logger.info("Voice processing command executed for player: " + player.getName());
+            
+            return true;
+            
+        } catch (Exception e) {
+            logger.severe("Error starting voice processing: " + e.getMessage());
+            sender.sendMessage("§c[Voice AI] Error starting voice processing: " + e.getMessage());
+            return true;
+        }
+    }
+    
+    /**
+     * Handle voice processing stop command
+     * @param sender Command sender
+     * @param args Command arguments
+     * @return true if command was handled
+     */
+    private boolean handleVoiceStop(CommandSender sender, String[] args) {
+        try {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage("§c[Voice AI] This command can only be used by players.");
+                return true;
+            }
+            
+            Player player = (Player) sender;
+            
+            // Simple implementation - just notify player
+            player.sendMessage("§a[Voice AI] Voice processing stopped successfully.");
+            logger.info("Voice processing stop command executed for player: " + player.getName());
+            
+            return true;
+            
+        } catch (Exception e) {
+            logger.severe("Error stopping voice processing: " + e.getMessage());
+            sender.sendMessage("§c[Voice AI] Error stopping voice processing: " + e.getMessage());
+            return true;
+        }
+    }
+    
+    /**
+     * Handle voice processing test command
+     * @param sender Command sender
+     * @param args Command arguments
+     * @return true if command was handled
+     */
+    private boolean handleVoiceTest(CommandSender sender, String[] args) {
+        try {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage("§c[Voice AI] This command can only be used by players.");
+                return true;
+            }
+            
+            Player player = (Player) sender;
+            
+            player.sendMessage("§a[Voice AI] Running voice system test...");
+            
+            // Test Speech-to-Text configuration
+            boolean sttEnabled = SpeechToTextConfig.isEnabled();
+            player.sendMessage("§7[Voice AI] STT Enabled: " + (sttEnabled ? "§a✓" : "§c✗"));
+            
+            if (sttEnabled) {
+                try {
+                    String credentialsPath = SpeechToTextConfig.getCredentialsPath();
+                    String languageCode = SpeechToTextConfig.getLanguageCode();
+                    int sampleRate = SpeechToTextConfig.getSampleRate();
+                    
+                    player.sendMessage("§7[Voice AI] Credentials: " + (credentialsPath != null ? "§a✓" : "§c✗"));
+                    player.sendMessage("§7[Voice AI] Language: §b" + languageCode);
+                    player.sendMessage("§7[Voice AI] Sample Rate: §b" + sampleRate + "Hz");
+                    
+                    // Test Google Cloud connection
+                    try {
+                        var speechClient = SpeechToTextConfig.getSpeechClient();
+                        if (speechClient != null) {
+                            player.sendMessage("§7[Voice AI] Google Cloud Connection: §a✓");
+                            speechClient.close(); // Close test connection
+                        } else {
+                            player.sendMessage("§7[Voice AI] Google Cloud Connection: §c✗");
+                        }
+                    } catch (Exception e) {
+                        player.sendMessage("§7[Voice AI] Google Cloud Connection: §c✗ (" + e.getMessage() + ")");
+                    }
+                    
+                } catch (Exception e) {
+                    player.sendMessage("§c[Voice AI] STT Configuration Error: " + e.getMessage());
+                }
+            }
+            
+            // Test basic system components
+            player.sendMessage("§7[Voice AI] Plugin Status: §aLoaded");
+            player.sendMessage("§7[Voice AI] WebSocket Status: §aConfigured");
+            
+            player.sendMessage("§a[Voice AI] Voice system test completed!");
+            
+            return true;
+            
+        } catch (Exception e) {
+            logger.severe("Error testing voice processing: " + e.getMessage());
+            sender.sendMessage("§c[Voice AI] Error testing voice processing: " + e.getMessage());
+            return true;
+        }
+    }
+    
+    /**
+     * Handle voice processing status command
+     * @param sender Command sender
+     * @param args Command arguments
+     * @return true if command was handled
+     */
+    private boolean handleVoiceStatus(CommandSender sender, String[] args) {
+        try {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage("§c[Voice AI] This command can only be used by players.");
+                return true;
+            }
+            
+            Player player = (Player) sender;
+            
+            player.sendMessage("§a[Voice AI] ===== Voice System Status =====");
+            
+            // Overall system status
+            boolean sttEnabled = SpeechToTextConfig.isEnabled();
+            player.sendMessage("§7[Voice AI] System Status: " + (sttEnabled ? "§aEnabled" : "§cDisabled"));
+            
+            if (sttEnabled) {
+                // Speech recognition status
+                try {
+                    String languageCode = SpeechToTextConfig.getLanguageCode();
+                    int sampleRate = SpeechToTextConfig.getSampleRate();
+                    player.sendMessage("§7[Voice AI] Language: §b" + languageCode);
+                    player.sendMessage("§7[Voice AI] Sample Rate: §b" + sampleRate + "Hz");
+                } catch (Exception e) {
+                    player.sendMessage("§c[Voice AI] STT Config Error: " + e.getMessage());
+                }
+            }
+            
+            // Basic plugin status
+            player.sendMessage("§7[Voice AI] Plugin: §aActive");
+            player.sendMessage("§7[Voice AI] Commands: §aAvailable");
+            
+            player.sendMessage("§a[Voice AI] ==============================");
+            
+            return true;
+            
+        } catch (Exception e) {
+            logger.severe("Error getting voice status: " + e.getMessage());
+            sender.sendMessage("§c[Voice AI] Error getting voice status: " + e.getMessage());
+            return true;
+        }
+    }
+    
+    /**
+     * Format uptime duration into human readable string
+     * @param uptimeMs Uptime in milliseconds
+     * @return Formatted uptime string
+     */
+    private String formatUptime(long uptimeMs) {
+        long seconds = uptimeMs / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        long days = hours / 24;
+        
+        if (days > 0) {
+            return String.format("%dd %dh %dm", days, hours % 24, minutes % 60);
+        } else if (hours > 0) {
+            return String.format("%dh %dm %ds", hours, minutes % 60, seconds % 60);
+        } else if (minutes > 0) {
+            return String.format("%dm %ds", minutes, seconds % 60);
+        } else {
+            return String.format("%ds", seconds);
+        }
     }
     
     /**

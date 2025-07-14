@@ -1,5 +1,6 @@
 import { BaseMessage, CommandMessage, ResponseMessage, EventMessage, StateMessage, MessageType } from '../protocol/types';
 import { MessageHandler, HandlerContext, CommandMessageHandler, ResponseMessageHandler, EventMessageHandler, StateMessageHandler } from './MessageHandler';
+import { MinecraftAIBody } from '../bot/MinecraftAIBody';
 
 /**
  * 대기 중인 요청 정보
@@ -507,5 +508,15 @@ export class MessageRouter implements HandlerContext {
       eventSubscriptions: this.eventSubscriptions.size,
       handlers: this.handlers.map(h => h.getName())
     };
+  }
+
+  /**
+   * Get bot instance (HandlerContext interface requirement)
+   * @returns Bot instance or null
+   */
+  public getBot(): MinecraftAIBody | null {
+    // MessageRouter doesn't directly manage bot instance
+    // This would typically be injected or managed by a higher-level service
+    return null;
   }
 } 

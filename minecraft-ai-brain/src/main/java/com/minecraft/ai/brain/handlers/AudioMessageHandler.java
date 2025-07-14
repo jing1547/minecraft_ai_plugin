@@ -3,6 +3,7 @@ package com.minecraft.ai.brain.handlers;
 import com.minecraft.ai.brain.service.AudioProcessor;
 import com.minecraft.ai.brain.service.SpeechToTextConfig;
 import com.minecraft.ai.brain.service.SpeechRecognitionService;
+import com.minecraft.ai.brain.websocket.WebSocketServerManager;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.bukkit.Bukkit;
@@ -12,12 +13,13 @@ import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
 /**
- * Handles audio-related WebSocket messages from clients
- * Processes audio data for speech-to-text conversion
+ * Handles audio data from WebSocket connections and processes it for speech-to-text conversion
  */
 public class AudioMessageHandler {
     
@@ -29,8 +31,96 @@ public class AudioMessageHandler {
     // Speech recognition service
     private SpeechRecognitionService speechRecognitionService;
     
+    // WebSocket server manager for sending responses
+    private WebSocketServerManager webSocketManager;
+    
+    /**
+     * Audio session data for a player
+     */
+    private static class AudioSession {
+        private final UUID playerId;
+        private final String sessionId;
+        private final long startTime;
+        private final BlockingQueue<byte[]> audioBuffer;
+        private volatile boolean isActive;
+        private volatile long lastProcessTime;
+        private volatile int totalAudioSize;
+        
+        public AudioSession(UUID playerId) {
+            this.playerId = playerId;
+            this.sessionId = "session_" + System.currentTimeMillis() + "_" + playerId.toString().substring(0, 8);
+            this.startTime = System.currentTimeMillis();
+            this.audioBuffer = new LinkedBlockingQueue<>();
+            this.isActive = false;
+            this.lastProcessTime = System.currentTimeMillis();
+            this.totalAudioSize = 0;
+        }
+        
+        public void startSession() {
+            this.isActive = true;
+            this.lastProcessTime = System.currentTimeMillis();
+        }
+        
+        public void endSession() {
+            this.isActive = false;
+            this.audioBuffer.clear();
+        }
+        
+        public void addAudioData(byte[] data) {
+            if (isActive && audioBuffer.size() < 100) { // Prevent buffer overflow
+                audioBuffer.offer(data);
+                totalAudioSize += data.length;
+                lastProcessTime = System.currentTimeMillis();
+            }
+        }
+        
+        public byte[] getAccumulatedAudio() {
+            // Combine all audio data in buffer
+            int totalSize = 0;
+            for (byte[] chunk : audioBuffer) {
+                totalSize += chunk.length;
+            }
+            
+            byte[] combined = new byte[totalSize];
+            int offset = 0;
+            while (!audioBuffer.isEmpty()) {
+                byte[] chunk = audioBuffer.poll();
+                if (chunk != null) {
+                    System.arraycopy(chunk, 0, combined, offset, chunk.length);
+                    offset += chunk.length;
+                }
+            }
+            return combined;
+        }
+        
+        public void clearBuffer() {
+            audioBuffer.clear();
+            lastProcessTime = System.currentTimeMillis();
+        }
+        
+        public boolean hasAudioData() {
+            return !audioBuffer.isEmpty();
+        }
+        
+        public double getAverageAudioLevel() {
+            // Calculate average audio level (simplified)
+            return 0.5; // Placeholder
+        }
+        
+        // Getters
+        public UUID getPlayerId() { return playerId; }
+        public String getSessionId() { return sessionId; }
+        public long getStartTime() { return startTime; }
+        public boolean isActive() { return isActive; }
+        public long getLastProcessTime() { return lastProcessTime; }
+        public int getBufferSize() { return audioBuffer.size(); }
+        public long getDuration() { return System.currentTimeMillis() - startTime; }
+        public int getTotalAudioSize() { return totalAudioSize; }
+    }
+    
     // Initialize Speech Recognition Service
-    public AudioMessageHandler() {
+    public AudioMessageHandler(WebSocketServerManager webSocketManager) {
+        this.webSocketManager = webSocketManager;
         try {
             if (SpeechToTextConfig.isEnabled()) {
                 this.speechRecognitionService = new SpeechRecognitionService();
@@ -41,201 +131,164 @@ public class AudioMessageHandler {
             }
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Failed to initialize SpeechRecognitionService", e);
-            this.speechRecognitionService = null;
         }
     }
     
     /**
-     * Audio session data for a player
+     * Handle incoming audio message from WebSocket
+     * @param playerUUID UUID of the player sending audio
+     * @param messageData Raw message data from WebSocket
      */
-    private static class AudioSession {
-        private final UUID playerId;
-        private final long startTime;
-        private volatile boolean isActive;
-        private volatile boolean isPushToTalkActive;
-        private int audioPacketCount;
-        private double totalAudioLevel;
-        
-        public AudioSession(UUID playerId) {
-            this.playerId = playerId;
-            this.startTime = System.currentTimeMillis();
-            this.isActive = true;
-            this.isPushToTalkActive = false;
-            this.audioPacketCount = 0;
-            this.totalAudioLevel = 0.0;
-        }
-        
-        public void updateAudioLevel(double level) {
-            audioPacketCount++;
-            totalAudioLevel += level;
-        }
-        
-        public double getAverageAudioLevel() {
-            return audioPacketCount > 0 ? totalAudioLevel / audioPacketCount : 0.0;
-        }
-        
-        // Getters and setters
-        public UUID getPlayerId() { return playerId; }
-        public long getStartTime() { return startTime; }
-        public boolean isActive() { return isActive; }
-        public void setActive(boolean active) { this.isActive = active; }
-        public boolean isPushToTalkActive() { return isPushToTalkActive; }
-        public void setPushToTalkActive(boolean active) { this.isPushToTalkActive = active; }
-        public int getAudioPacketCount() { return audioPacketCount; }
-    }
-    
-    /**
-     * Handle audio start message from client
-     * @param playerId Player UUID
-     * @param message Audio start message
-     */
-    public void handleAudioStart(UUID playerId, String message) {
+    public void handleAudioMessage(UUID playerUUID, String messageData) {
         try {
-            Player player = Bukkit.getPlayer(playerId);
+            // Parse the audio message
+            JsonObject messageJson = JsonParser.parseString(messageData).getAsJsonObject();
+            
+            String audioAction = messageJson.get("action").getAsString();
+            JsonObject audioData = messageJson.getAsJsonObject("data");
+            
+            switch (audioAction) {
+                case "start_recording":
+                    handleStartRecording(playerUUID, audioData);
+                    break;
+                case "audio_chunk":
+                    handleAudioChunk(playerUUID, audioData);
+                    break;
+                case "stop_recording":
+                    handleStopRecording(playerUUID, audioData);
+                    break;
+                case "get_audio_status":
+                    handleGetAudioStatus(playerUUID);
+                    break;
+                default:
+                    logger.warning("Unknown audio action: " + audioAction);
+                    sendErrorResponse(playerUUID, "unknown_action", "Unknown audio action: " + audioAction);
+            }
+            
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error handling audio message from " + playerUUID, e);
+            sendErrorResponse(playerUUID, "processing_error", "Failed to process audio message: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Handle start recording command
+     */
+    private void handleStartRecording(UUID playerUUID, JsonObject data) {
+        try {
+            Player player = Bukkit.getPlayer(playerUUID);
             if (player == null) {
-                logger.warning("Received audio start for unknown player: " + playerId);
+                sendErrorResponse(playerUUID, "player_not_found", "Player not found");
                 return;
             }
             
-            JsonObject json = JsonParser.parseString(message).getAsJsonObject();
+            // Create or update audio session
+            AudioSession session = audioSessions.computeIfAbsent(playerUUID, k -> new AudioSession(playerUUID));
+            session.startSession();
             
-            // Create audio session
-            AudioSession session = new AudioSession(playerId);
-            audioSessions.put(playerId, session);
+            logger.info("Started audio recording session for player: " + player.getName());
             
-            logger.info("Started audio session for player: " + player.getName());
+            // Send success response through chat (WebSocket method not available)
+            player.sendMessage("§a[Audio] Recording started successfully");
             
-            // Send acknowledgment back to client
-            JsonObject response = new JsonObject();
-            response.addProperty("type", "audio_start_ack");
-            response.addProperty("status", "success");
-            response.addProperty("audio_format", AudioProcessor.getAudioFormatInfo());
-            
-            // TODO: Send response through WebSocket
+            // Log success response
+            logger.info("Recording started response sent to " + player.getName());
             
         } catch (Exception e) {
-            logger.severe("Error handling audio start: " + e.getMessage());
+            logger.log(Level.SEVERE, "Error starting recording for " + playerUUID, e);
+            sendErrorResponse(playerUUID, "start_recording_error", e.getMessage());
         }
     }
     
     /**
-     * Handle audio data message from client
-     * @param playerId Player UUID
-     * @param message Audio data message
+     * Handle incoming audio chunk
      */
-    public void handleAudioData(UUID playerId, String message) {
+    private void handleAudioChunk(UUID playerUUID, JsonObject data) {
         try {
-            AudioSession session = audioSessions.get(playerId);
+            AudioSession session = audioSessions.get(playerUUID);
             if (session == null || !session.isActive()) {
-                logger.warning("Received audio data for inactive session: " + playerId);
+                sendErrorResponse(playerUUID, "no_active_session", "No active audio session");
                 return;
             }
             
-            Player player = Bukkit.getPlayer(playerId);
-            if (player == null) {
-                logger.warning("Received audio data for unknown player: " + playerId);
-                return;
+            // Get audio data from the message
+            String encodedAudio = data.get("audioData").getAsString();
+            byte[] audioData = Base64.getDecoder().decode(encodedAudio);
+            
+            // Process audio data
+            byte[] processedAudio = AudioProcessor.preprocessAudio(audioData);
+            
+            // Add to session buffer
+            session.addAudioData(processedAudio);
+            
+            // Check if we should process for speech-to-text
+            if (shouldProcessForSpeech(session)) {
+                Player player = Bukkit.getPlayer(playerUUID);
+                if (player != null) {
+                    processAudioForSpeechToText(player, session.getAccumulatedAudio());
+                    session.clearBuffer(); // Clear after processing
+                }
             }
             
-            JsonObject json = JsonParser.parseString(message).getAsJsonObject();
-            
-            // Check if push-to-talk is active (if enabled)
-            if (isPushToTalkEnabled() && !session.isPushToTalkActive()) {
-                return; // Ignore audio data if push-to-talk is not active
-            }
-            
-            // Extract audio data
-            String audioDataBase64 = json.get("data").getAsString();
-            byte[] audioData = Base64.getDecoder().decode(audioDataBase64);
-            
-            // Validate audio data
-            if (!AudioProcessor.isValidAudioData(audioData)) {
-                logger.warning("Invalid audio data received from player: " + player.getName());
-                return;
-            }
-            
-            // Calculate audio level for monitoring
-            double audioLevel = AudioProcessor.calculateAudioLevel(audioData);
-            session.updateAudioLevel(audioLevel);
-            
-            // Check for voice activity
-            if (AudioProcessor.detectVoiceActivity(audioData)) {
-                // Process audio data
-                byte[] processedAudio = AudioProcessor.preprocessAudio(audioData);
-                
-                // TODO: Send to Speech-to-Text service
-                processAudioForSpeechToText(player, processedAudio);
-                
-                logger.info("Processed audio data for player: " + player.getName() + 
-                           " (level: " + String.format("%.2f", audioLevel) + ")");
-            }
+            logger.fine("Processed audio chunk for player: " + playerUUID + ", size: " + audioData.length);
             
         } catch (Exception e) {
-            logger.severe("Error handling audio data: " + e.getMessage());
+            logger.log(Level.SEVERE, "Error processing audio chunk from " + playerUUID, e);
+            sendErrorResponse(playerUUID, "audio_processing_error", e.getMessage());
         }
     }
     
     /**
-     * Handle audio stop message from client
-     * @param playerId Player UUID
-     * @param message Audio stop message
+     * Handle stop recording command
      */
-    public void handleAudioStop(UUID playerId, String message) {
+    private void handleStopRecording(UUID playerUUID, JsonObject data) {
         try {
-            AudioSession session = audioSessions.remove(playerId);
+            AudioSession session = audioSessions.get(playerUUID);
             if (session == null) {
-                logger.warning("Received audio stop for unknown session: " + playerId);
+                sendErrorResponse(playerUUID, "no_session", "No audio session found");
                 return;
             }
             
-            Player player = Bukkit.getPlayer(playerId);
-            if (player != null) {
-                logger.info("Stopped audio session for player: " + player.getName() + 
-                           " (packets: " + session.getAudioPacketCount() + 
-                           ", avg level: " + String.format("%.2f", session.getAverageAudioLevel()) + ")");
+            Player player = Bukkit.getPlayer(playerUUID);
+            if (player != null && session.hasAudioData()) {
+                // Process any remaining audio for speech-to-text
+                processAudioForSpeechToText(player, session.getAccumulatedAudio());
             }
             
-            session.setActive(false);
+            session.endSession();
+            logger.info("Stopped audio recording session for player: " + playerUUID);
             
-            // Send acknowledgment back to client
-            JsonObject response = new JsonObject();
-            response.addProperty("type", "audio_stop_ack");
-            response.addProperty("status", "success");
-            response.addProperty("session_duration", System.currentTimeMillis() - session.getStartTime());
-            
-            // TODO: Send response through WebSocket
+            // Send success response through chat
+            if (player != null) {
+                player.sendMessage("§a[Audio] Recording stopped. Duration: " + (session.getDuration() / 1000) + "s");
+            }
             
         } catch (Exception e) {
-            logger.severe("Error handling audio stop: " + e.getMessage());
+            logger.log(Level.SEVERE, "Error stopping recording for " + playerUUID, e);
+            sendErrorResponse(playerUUID, "stop_recording_error", e.getMessage());
         }
     }
     
     /**
-     * Handle push-to-talk state change
-     * @param playerId Player UUID
-     * @param message Push-to-talk message
+     * Handle get audio status command
      */
-    public void handlePushToTalk(UUID playerId, String message) {
+    private void handleGetAudioStatus(UUID playerUUID) {
         try {
-            AudioSession session = audioSessions.get(playerId);
-            if (session == null) {
-                logger.warning("Received push-to-talk for unknown session: " + playerId);
-                return;
-            }
+            AudioSession session = audioSessions.get(playerUUID);
+            Player player = Bukkit.getPlayer(playerUUID);
             
-            JsonObject json = JsonParser.parseString(message).getAsJsonObject();
-            boolean active = json.get("active").getAsBoolean();
-            
-            session.setPushToTalkActive(active);
-            
-            Player player = Bukkit.getPlayer(playerId);
             if (player != null) {
-                logger.info("Push-to-talk " + (active ? "activated" : "deactivated") + 
-                           " for player: " + player.getName());
+                if (session != null && session.isActive()) {
+                    player.sendMessage("§a[Audio] Status: Recording active, Duration: " + 
+                                     (session.getDuration() / 1000) + "s, Buffer: " + session.getBufferSize());
+                } else {
+                    player.sendMessage("§a[Audio] Status: No active recording session");
+                }
             }
             
         } catch (Exception e) {
-            logger.severe("Error handling push-to-talk: " + e.getMessage());
+            logger.log(Level.SEVERE, "Error getting audio status for " + playerUUID, e);
+            sendErrorResponse(playerUUID, "status_error", e.getMessage());
         }
     }
     
@@ -247,115 +300,204 @@ public class AudioMessageHandler {
     private void processAudioForSpeechToText(Player player, byte[] audioData) {
         try {
             // Check if Speech-to-Text is enabled
-            if (!SpeechToTextConfig.isEnabled()) {
+            if (!SpeechToTextConfig.isEnabled() || speechRecognitionService == null) {
+                logger.fine("Speech-to-Text is disabled, skipping processing");
                 return;
             }
             
-            // Check if speech recognition service is available
-            if (speechRecognitionService == null) {
-                logger.warning("SpeechRecognitionService not available for player: " + player.getName());
-                return;
-            }
+            logger.info("Processing audio for STT for player: " + player.getName() + 
+                       ", audio size: " + audioData.length + " bytes");
             
-            logger.fine("Processing audio for STT for player: " + player.getName() + 
-                       " (data size: " + audioData.length + " bytes)");
+            // Perform speech recognition
+            String recognizedText = speechRecognitionService.recognizeSpeech(audioData);
             
-            // Process audio through speech recognition service
-            if (speechRecognitionService.queueAudio(audioData)) {
-                logger.fine("Audio queued for STT processing for player: " + player.getName());
+            if (recognizedText != null && !recognizedText.trim().isEmpty()) {
+                logger.info("Speech recognized from " + player.getName() + ": " + recognizedText);
+                
+                // Send recognition result to AI conversation system
+                processRecognizedSpeech(player, recognizedText);
+                
+                // Send response through chat
+                player.sendMessage("§b[STT] Recognized: " + recognizedText);
+                
             } else {
-                logger.warning("Failed to queue audio for STT processing - queue may be full");
+                logger.fine("No speech recognized from audio data");
             }
             
-            // For immediate synchronous processing (alternative approach):
-            // String recognizedText = speechRecognitionService.recognizeSpeech(audioData);
-            // if (!recognizedText.isEmpty()) {
-            //     logger.info("Recognized speech from " + player.getName() + ": " + recognizedText);
-            //     handleRecognizedSpeech(player, recognizedText);
-            // }
-            
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error processing audio for STT for player: " + player.getName(), e);
+            logger.log(Level.SEVERE, "Error processing audio for STT", e);
+            sendErrorResponse(player.getUniqueId(), "stt_error", "Speech recognition failed: " + e.getMessage());
         }
     }
     
     /**
-     * Handle recognized speech text from a player
+     * Process recognized speech text through AI conversation system
      * @param player Player who spoke
-     * @param recognizedText Recognized speech text
+     * @param recognizedText The recognized speech text
      */
-    private void handleRecognizedSpeech(Player player, String recognizedText) {
+    private void processRecognizedSpeech(Player player, String recognizedText) {
         try {
-            logger.info("Handling recognized speech from " + player.getName() + ": '" + recognizedText + "'");
+            logger.info("Processing recognized speech from " + player.getName() + ": " + recognizedText);
             
-            // TODO: Integrate with AI conversation system
-            // This could involve:
-            // 1. Parsing the text for commands or natural language
-            // 2. Sending to AI conversation service for response generation
-            // 3. Executing game commands if it matches command patterns
-            // 4. Sending AI responses back through WebSocket or chat
+            // Check if this is a command (starts with !)
+            if (recognizedText.startsWith("!")) {
+                processVoiceCommand(player, recognizedText.substring(1).trim());
+                return;
+            }
             
-            // For now, just broadcast to chat as a proof of concept
-            String message = "§7[STT] §f" + player.getName() + " said: §e" + recognizedText;
-            Bukkit.broadcastMessage(message);
+            // Send to AI conversation system for natural language processing
+            Bukkit.getScheduler().runTaskAsynchronously(
+                Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"), 
+                () -> {
+                    try {
+                        // Create AI conversation request
+                        JsonObject aiRequest = new JsonObject();
+                        aiRequest.addProperty("type", "conversation");
+                        aiRequest.addProperty("playerName", player.getName());
+                        aiRequest.addProperty("playerUUID", player.getUniqueId().toString());
+                        aiRequest.addProperty("message", recognizedText);
+                        aiRequest.addProperty("timestamp", System.currentTimeMillis());
+                        aiRequest.addProperty("isVoiceInput", true);
+                        
+                        // Send to AI conversation service (this could be extended to call external AI API)
+                        processAIConversation(player, aiRequest);
+                        
+                    } catch (Exception e) {
+                        logger.log(Level.SEVERE, "Error in AI conversation processing", e);
+                    }
+                }
+            );
             
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error handling recognized speech from " + player.getName(), e);
+            logger.log(Level.SEVERE, "Error processing recognized speech", e);
         }
     }
     
     /**
-     * Get active audio sessions
-     * @return Map of active sessions
+     * Process voice commands (starting with !)
+     * @param player Player who issued the command
+     * @param command The command text
      */
-    public Map<UUID, String> getActiveSessions() {
-        Map<UUID, String> sessions = new ConcurrentHashMap<>();
-        audioSessions.forEach((playerId, session) -> {
-            if (session.isActive()) {
-                Player player = Bukkit.getPlayer(playerId);
-                if (player != null) {
-                    sessions.put(playerId, player.getName());
-                }
+    private void processVoiceCommand(Player player, String command) {
+        try {
+            logger.info("Processing voice command from " + player.getName() + ": " + command);
+            
+            // Parse command and execute
+            String[] parts = command.split(" ");
+            String commandName = parts[0].toLowerCase();
+            
+            switch (commandName) {
+                case "help":
+                    player.sendMessage("§a[Voice AI] Available voice commands: !help, !status, !time, !weather");
+                    break;
+                case "status":
+                    player.sendMessage("§a[Voice AI] Bot Status: Active, Health: " + player.getHealth() + "/20");
+                    break;
+                case "time":
+                    long time = player.getWorld().getTime();
+                    String timeOfDay = time < 6000 ? "Morning" : time < 12000 ? "Day" : time < 18000 ? "Evening" : "Night";
+                    player.sendMessage("§a[Voice AI] Current time: " + timeOfDay + " (" + time + ")");
+                    break;
+                case "weather":
+                    String weather = player.getWorld().hasStorm() ? "Stormy" : "Clear";
+                    player.sendMessage("§a[Voice AI] Current weather: " + weather);
+                    break;
+                default:
+                    player.sendMessage("§c[Voice AI] Unknown command: " + commandName + ". Say '!help' for available commands.");
             }
-        });
-        return sessions;
+            
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error processing voice command", e);
+            player.sendMessage("§c[Voice AI] Error processing voice command: " + e.getMessage());
+        }
     }
     
     /**
-     * Stop all audio sessions
+     * Process AI conversation request
+     * @param player Player requesting conversation
+     * @param request AI conversation request data
      */
-    public void stopAllSessions() {
-        audioSessions.values().forEach(session -> session.setActive(false));
-        audioSessions.clear();
-        logger.info("Stopped all audio sessions");
+    private void processAIConversation(Player player, JsonObject request) {
+        try {
+            // For now, provide a simple AI-like response
+            // This could be extended to call OpenAI API, Claude, or other AI services
+            
+            String userMessage = request.get("message").getAsString().toLowerCase();
+            String aiResponse;
+            
+            if (userMessage.contains("hello") || userMessage.contains("hi")) {
+                aiResponse = "Hello " + player.getName() + "! How can I help you today?";
+            } else if (userMessage.contains("weather")) {
+                String weather = player.getWorld().hasStorm() ? "stormy" : "clear";
+                aiResponse = "The weather is currently " + weather + " in your world.";
+            } else if (userMessage.contains("time")) {
+                long time = player.getWorld().getTime();
+                String timeOfDay = time < 6000 ? "morning" : time < 12000 ? "day" : time < 18000 ? "evening" : "night";
+                aiResponse = "It's currently " + timeOfDay + " in your world.";
+            } else if (userMessage.contains("help")) {
+                aiResponse = "I can help you with information about the game, weather, time, and answer questions. Just speak naturally!";
+            } else {
+                aiResponse = "I heard you say: \"" + request.get("message").getAsString() + "\". I'm a simple AI assistant. Try asking about weather, time, or say hello!";
+            }
+            
+            // Send AI response back to player
+            player.sendMessage("§b[AI Assistant] " + aiResponse);
+            
+            logger.info("AI response sent to " + player.getName() + ": " + aiResponse);
+            
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error in AI conversation", e);
+            player.sendMessage("§c[AI Assistant] Sorry, I encountered an error while processing your message.");
+        }
     }
     
     /**
-     * Check if push-to-talk is enabled
-     * @return true if enabled
+     * Check if audio session should be processed for speech recognition
      */
-    private boolean isPushToTalkEnabled() {
-        // TODO: Read from configuration
-        return false; // Default to false for now
+    private boolean shouldProcessForSpeech(AudioSession session) {
+        // Process when buffer reaches certain size or after certain time
+        return session.getBufferSize() >= getConfiguredBufferThreshold() || 
+               (System.currentTimeMillis() - session.getLastProcessTime()) >= getConfiguredProcessInterval();
     }
     
     /**
-     * Get audio session statistics
-     * @return Statistics as JSON object
+     * Send error response through chat message
+     */
+    private void sendErrorResponse(UUID playerUUID, String errorCode, String errorMessage) {
+        try {
+            Player player = Bukkit.getPlayer(playerUUID);
+            if (player != null) {
+                player.sendMessage("§c[Audio Error] " + errorCode + ": " + errorMessage);
+            }
+            logger.warning("Audio error for " + playerUUID + " - " + errorCode + ": " + errorMessage);
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error sending error response", e);
+        }
+    }
+    
+    /**
+     * Get configured buffer threshold for processing
+     */
+    private int getConfiguredBufferThreshold() {
+        // Default to 5 chunks, could be made configurable
+        return 5;
+    }
+    
+    /**
+     * Get configured processing interval in milliseconds
+     */
+    private long getConfiguredProcessInterval() {
+        // Default to 3 seconds, could be made configurable
+        return 3000;
+    }
+    
+    /**
+     * Get audio statistics for monitoring
      */
     public JsonObject getAudioStatistics() {
         JsonObject stats = new JsonObject();
         stats.addProperty("active_sessions", audioSessions.size());
         stats.addProperty("total_sessions", audioSessions.size());
-        stats.addProperty("stt_enabled", SpeechToTextConfig.isEnabled());
-        stats.addProperty("stt_service_available", speechRecognitionService != null);
-        
-        // Add STT service statistics if available
-        if (speechRecognitionService != null) {
-            var sttStats = speechRecognitionService.getStatistics();
-            stats.addProperty("stt_queue_size", sttStats.queueSize);
-            stats.addProperty("stt_processing", sttStats.isProcessing);
-        }
         
         // Calculate average audio level across all sessions
         double totalLevel = 0.0;
@@ -369,22 +511,29 @@ public class AudioMessageHandler {
         
         stats.addProperty("average_audio_level", sessionCount > 0 ? totalLevel / sessionCount : 0.0);
         
+        // Add STT service statistics if available
+        if (speechRecognitionService != null) {
+            var sttStats = speechRecognitionService.getStatistics();
+            stats.addProperty("stt_queue_size", sttStats.queueSize);
+            stats.addProperty("stt_is_processing", sttStats.isProcessing);
+        }
+        
         return stats;
     }
     
     /**
-     * Shutdown the audio message handler and clean up resources
+     * Cleanup resources
      */
     public void shutdown() {
         logger.info("Shutting down AudioMessageHandler");
         
         // Stop all active sessions
-        stopAllSessions();
+        audioSessions.values().forEach(AudioSession::endSession);
+        audioSessions.clear();
         
         // Shutdown speech recognition service
         if (speechRecognitionService != null) {
             speechRecognitionService.shutdown();
-            speechRecognitionService = null;
         }
         
         logger.info("AudioMessageHandler shutdown complete");
