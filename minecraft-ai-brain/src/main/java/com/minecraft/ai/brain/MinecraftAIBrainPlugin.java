@@ -9,6 +9,11 @@ import com.minecraft.ai.brain.handlers.PlayerEventHandler;
 import com.minecraft.ai.brain.handlers.CommandHandler;
 import com.minecraft.ai.brain.utils.ConfigManager;
 import com.minecraft.ai.brain.utils.Logger;
+import com.minecraft.ai.brain.service.ServiceManager;
+import com.minecraft.ai.brain.service.ServiceException;
+import com.minecraft.ai.brain.service.TextToSpeechService;
+import com.minecraft.ai.brain.service.AudioPlayerService;
+import com.minecraft.ai.brain.service.AudioCaptureService;
 
 import java.util.logging.Level;
 
@@ -28,6 +33,7 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
     private WebSocketServerManager webSocketManager;
     private ConfigManager configManager;
     private Logger pluginLogger;
+    private ServiceManager serviceManager;
     
     // Event handlers
     private PlayerEventHandler playerEventHandler;
@@ -48,6 +54,9 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
             configManager.loadConfig();
             
             pluginLogger.info("Configuration loaded successfully");
+            
+            // Initialize service manager and register all services
+            initializeServices();
             
             // Initialize WebSocket server for bot communication
             initializeWebSocketServer();
@@ -76,6 +85,12 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
         pluginLogger.info("=== Minecraft AI Brain Plugin Shutting Down ===");
         
         try {
+            // Shutdown services first
+            if (serviceManager != null) {
+                serviceManager.shutdown();
+                pluginLogger.info("Services stopped");
+            }
+            
             // Shutdown WebSocket server
             if (webSocketManager != null) {
                 webSocketManager.shutdown();
@@ -100,6 +115,26 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
         
         pluginLogger.info("=== Minecraft AI Brain Plugin Shutdown Complete ===");
         instance = null;
+    }
+
+    /**
+     * Initialize service manager and register all services
+     */
+    private void initializeServices() throws ServiceException {
+        this.serviceManager = new ServiceManager(this);
+        
+        // Register all services
+        serviceManager.registerService(new TextToSpeechService(this));
+        serviceManager.registerService(new AudioPlayerService());
+        serviceManager.registerService(new AudioCaptureService());
+        
+        pluginLogger.info("Services registered");
+        
+        // Initialize and start all services
+        serviceManager.initializeServices();
+        serviceManager.startServices();
+        
+        pluginLogger.info("All services initialized and started successfully");
     }
 
     /**
@@ -161,6 +196,15 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
             if (webSocketManager != null) {
                 webSocketManager.checkConnectionStatus();
             }
+            
+            if (serviceManager != null) {
+                // Log service health status
+                serviceManager.getAllServiceHealth().forEach((serviceId, health) -> {
+                    if (!health.isHealthy()) {
+                        pluginLogger.warning("Service health issue: " + serviceId + " - " + health.getMessage());
+                    }
+                });
+            }
         }, 20L * 30L, 20L * 30L); // 30 seconds in ticks
         
         pluginLogger.debug("Scheduled tasks initialized");
@@ -173,6 +217,13 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
      */
     public static MinecraftAIBrainPlugin getInstance() {
         return instance;
+    }
+
+    /**
+     * Get the service manager
+     */
+    public ServiceManager getServiceManager() {
+        return serviceManager;
     }
 
     /**

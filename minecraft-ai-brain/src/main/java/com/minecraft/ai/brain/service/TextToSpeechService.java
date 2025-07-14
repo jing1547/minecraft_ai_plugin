@@ -2,6 +2,7 @@ package com.minecraft.ai.brain.service;
 
 import com.minecraft.ai.brain.utils.Logger;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.entity.Player;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +30,9 @@ public class TextToSpeechService implements Service {
     // Advanced cache and rate limiting
     private TTSCacheManager cacheManager;
     private APIRateLimiter rateLimiter;
+    
+    // Audio player dependency
+    private AudioPlayerService audioPlayerService;
     
     // Configuration cache
     private String defaultLanguageCode = "ko-KR";
@@ -65,7 +69,7 @@ public class TextToSpeechService implements Service {
     
     @Override
     public List<String> getDependencies() {
-        return Arrays.asList(); // No dependencies for now
+        return Arrays.asList("audio_player");
     }
     
     @Override
@@ -77,50 +81,47 @@ public class TextToSpeechService implements Service {
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
         
+        // TTS-specific metrics
+        metrics.put("state", currentState.name());
+        metrics.put("uptime", getUptime());
+        metrics.put("defaultLanguage", defaultLanguageCode);
+        metrics.put("defaultVoice", defaultVoiceName);
+        
         // Cache metrics
         if (cacheManager != null) {
             Map<String, Object> cacheStats = cacheManager.getCacheStatistics();
-            metrics.putAll(cacheStats);
-        } else {
-            metrics.put("cache_size", 0);
-            metrics.put("max_cache_size", 0);
+            metrics.put("cacheHitRate", cacheStats.get("hit_rate_percent"));
+            metrics.put("cacheSize", cacheStats.get("cache_size"));
+            metrics.put("totalCacheRequests", cacheStats.get("total_requests"));
         }
         
         // Rate limiter metrics
         if (rateLimiter != null) {
-            Map<String, Object> rateLimiterStats = rateLimiter.getStatistics();
-            rateLimiterStats.forEach((key, value) -> metrics.put("rate_limiter_" + key, value));
+            metrics.put("rateLimitAllowed", rateLimiter.allowRequest());
+            metrics.put("rateLimitWaitTime", rateLimiter.getTimeToNextAvailableSlot());
         }
         
-        metrics.put("emotion_mappings_count", emotionVoiceMapping.size());
-        metrics.put("state", currentState.name());
-        metrics.put("uptime_ms", getUptime());
-        metrics.put("enabled", isEnabled());
         return metrics;
     }
     
     @Override
     public Map<String, Object> getConfiguration() {
         Map<String, Object> config = new HashMap<>();
-        config.put("language_code", defaultLanguageCode);
-        config.put("voice_name", defaultVoiceName);
-        config.put("audio_encoding", audioEncoding);
-        config.put("sample_rate", sampleRateHertz);
-        config.put("enabled", isEnabled());
-        config.put("available_emotions", getAvailableEmotions());
+        config.put("languageCode", defaultLanguageCode);
+        config.put("voiceName", defaultVoiceName);
+        config.put("audioEncoding", audioEncoding);
+        config.put("sampleRateHertz", sampleRateHertz);
         return config;
     }
     
     @Override
     public void onConfigurationChange(Map<String, Object> newConfig) {
-        logger.info(LOG_PREFIX + "Configuration change received");
-        // Handle configuration changes if needed
-        // TODO: Implement configuration update logic
+        // Handle configuration changes
     }
     
     @Override
     public boolean isEnabled() {
-        return TTSConfig.isEnabled();
+        return currentState == State.RUNNING;
     }
     
     @Override
@@ -142,6 +143,16 @@ public class TextToSpeechService implements Service {
         try {
             currentState = State.INITIALIZED;
             logger.info(LOG_PREFIX + "Initializing TextToSpeech service...");
+            
+            // Get AudioPlayerService dependency
+            Service audioService = dependencies.get("audio_player");
+            if (audioService instanceof AudioPlayerService) {
+                this.audioPlayerService = (AudioPlayerService) audioService;
+                logger.info(LOG_PREFIX + "AudioPlayerService dependency resolved");
+            } else {
+                throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.DEPENDENCY_NOT_FOUND, 
+                    "AudioPlayerService dependency not found or invalid type");
+            }
             
             // Check if TTS configuration is initialized
             if (!TTSConfig.isInitialized()) {
@@ -213,23 +224,19 @@ public class TextToSpeechService implements Service {
             currentState = State.STOPPING;
             logger.info(LOG_PREFIX + "Stopping TextToSpeech service...");
             
-            // Clear cache
+            // Cleanup resources
             if (cacheManager != null) {
                 cacheManager.clearCache();
             }
             
-            // Close TTS client (placeholder)
-            // TODO: Implement actual TTS client shutdown
-            
             currentState = State.STOPPED;
-            startTime = -1;
-            currentHealth = ServiceHealth.unknown("Service stopped");
+            currentHealth = ServiceHealth.healthy("TTS service stopped");
             logger.info(LOG_PREFIX + "TextToSpeech service stopped successfully");
             
         } catch (Exception e) {
             currentState = State.FAILED;
             currentHealth = ServiceHealth.unhealthy("Stop failed: " + e.getMessage());
-            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SHUTDOWN_FAILED, 
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.STARTUP_FAILED, 
                 "Failed to stop TextToSpeech service", e);
         }
     }
@@ -660,5 +667,42 @@ public class TextToSpeechService implements Service {
                            cacheSize, maxCache, hitRate,
                            emotionVoiceMapping.size(),
                            rateLimiter != null ? rateLimiter.getStatusInfo() : "N/A");
+    }
+
+    /**
+     * Synthesize speech and play it to a player at a specific location
+     */
+    public void synthesizeAndPlay(String text, Player player, AudioPlayerService.Position position) throws ServiceException {
+        synthesizeAndPlay(text, "neutral", player, position);
+    }
+    
+    /**
+     * Synthesize speech with emotion and play it to a player at a specific location
+     */
+    public void synthesizeAndPlay(String text, String emotion, Player player, AudioPlayerService.Position position) throws ServiceException {
+        if (currentState != State.RUNNING) {
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "TextToSpeech service is not running");
+        }
+        
+        if (audioPlayerService == null) {
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.DEPENDENCY_NOT_FOUND,
+                "AudioPlayerService not available");
+        }
+        
+        try {
+            // Generate audio data
+            byte[] audioData = synthesizeSpeech(text, emotion);
+            
+            // Queue for spatial playback
+            audioPlayerService.queueAudio(audioData, position, player.getUniqueId());
+            
+            logger.debug(LOG_PREFIX + "Queued audio for playback: " + text.substring(0, Math.min(50, text.length())));
+            
+        } catch (Exception e) {
+            currentHealth = ServiceHealth.degraded("Synthesis and play failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "Failed to synthesize and play speech: " + e.getMessage(), e);
+        }
     }
 } 
