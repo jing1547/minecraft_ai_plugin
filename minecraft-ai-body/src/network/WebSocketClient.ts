@@ -167,12 +167,32 @@ export class WebSocketClient {
       // 디버깅을 위해 원본 메시지 로깅
       this.log(`Raw message received: ${messageData}`);
       
+      // null 또는 빈 메시지 처리
+      if (!messageData || messageData.trim() === '' || messageData.trim() === 'null') {
+        this.log('Received empty or null message, ignoring');
+        return;
+      }
+      
       // ping/pong 메시지는 프로토콜 외부의 연결 유지 메시지
       const parsed = JSON.parse(messageData);
+      
+      // JSON.parse 결과가 null인 경우도 처리
+      if (parsed === null || typeof parsed !== 'object') {
+        this.log('Received invalid JSON message, ignoring');
+        return;
+      }
       if (parsed.type === 'ping') {
         this.log('Received ping, sending pong');
         if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-          this.ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }));
+          // Java 서버가 기대하는 BaseMessage 형식으로 pong 응답
+          const pongMessage = {
+            type: 'pong',
+            id: `pong-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            timestamp: new Date().toISOString(),
+            version: '1.0.0',
+            payload: { acknowledged: true }
+          };
+          this.ws.send(JSON.stringify(pongMessage));
         }
         return;
       }

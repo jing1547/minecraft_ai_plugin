@@ -47,7 +47,9 @@ public abstract class BaseMessage {
         @SerializedName("command") COMMAND,
         @SerializedName("response") RESPONSE,
         @SerializedName("event") EVENT,
-        @SerializedName("state") STATE
+        @SerializedName("state") STATE,
+        @SerializedName("ping") PING,
+        @SerializedName("pong") PONG
     }
     
     /**
