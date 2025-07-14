@@ -27,8 +27,8 @@ export interface WebSocketResponse extends BaseMessage {
     type: MessageType.RESPONSE;
     correlationId: string;
     payload: {
-        success: boolean;
-        result?: any;
+    success: boolean;
+    result?: any;
         error?: {
             code: string;
             message: string;

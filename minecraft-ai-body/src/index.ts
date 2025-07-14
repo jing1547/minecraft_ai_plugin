@@ -316,7 +316,7 @@ class MinecraftAIBodyApp {
       // Note: No WebSocket URL - handled separately now
     };
 
-    this.aiBody = new AIBody(options);
+         this.aiBody = new AIBody(options);
     this.setupEventHandlers();
   }
 
@@ -465,9 +465,9 @@ class MinecraftAIBodyApp {
       console.log('   - Minecraft 서버를 시작하거나 올바른 주소를 설정하세요');
       console.log('');
       console.log('2. 🧪 또는 테스트 모드로 실행하세요 (서버 연결 없이):');
-      console.log('   npm run test-mode');
+        console.log('   npm run test-mode');
       console.log('   또는');
-      console.log('   TEST_MODE=true npm start');
+        console.log('   TEST_MODE=true npm start');
       console.log('');
       console.log('3. 🔧 환경변수로 다른 서버 설정:');
       console.log('   set MINECRAFT_HOST=your-server-ip');
