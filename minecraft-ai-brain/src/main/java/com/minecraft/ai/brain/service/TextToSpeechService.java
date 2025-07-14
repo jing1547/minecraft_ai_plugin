@@ -298,6 +298,244 @@ public class TextToSpeechService implements Service {
     }
     
     /**
+     * Synthesize speech using SSML markup for enhanced expression
+     */
+    public byte[] synthesizeSpeechWithSSML(String text, String emotion) throws ServiceException {
+        if (currentState != State.RUNNING) {
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "TextToSpeech service is not running");
+        }
+        
+        if (text == null || text.trim().isEmpty()) {
+            throw new IllegalArgumentException("Text cannot be null or empty");
+        }
+        
+        try {
+            // Generate SSML markup with emotion and Korean optimizations
+            String ssmlText = addEmotionSSML(text, emotion);
+            
+            // Check cache first (using SSML as key)
+            String cacheKey = "ssml|" + ssmlText + "|" + (emotion != null ? emotion : "default");
+            if (audioCache.containsKey(cacheKey)) {
+                logger.info(LOG_PREFIX + "Retrieved SSML audio from cache");
+                return audioCache.get(cacheKey);
+            }
+            
+            // TODO: Implement actual Google Cloud TTS synthesis with SSML
+            // For now, return placeholder data
+            logger.info(LOG_PREFIX + "Synthesizing SSML speech with " + 
+                       (emotion != null ? emotion : "default") + " emotion: " + 
+                       text.substring(0, Math.min(30, text.length())) + 
+                       (text.length() > 30 ? "..." : ""));
+            
+            // Placeholder: return empty byte array
+            byte[] audioData = new byte[0];
+            
+            // Cache the result (with size limit)
+            if (audioCache.size() < maxCacheSize) {
+                audioCache.put(cacheKey, audioData);
+            }
+            
+            logger.info(LOG_PREFIX + "SSML speech synthesis completed (placeholder), audio size: " + 
+                       audioData.length + " bytes");
+            return audioData;
+            
+        } catch (Exception e) {
+            currentHealth = ServiceHealth.degraded("SSML synthesis failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "Failed to synthesize SSML speech: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Add emotion-specific SSML markup with Korean language optimizations
+     */
+    private String addEmotionSSML(String text, String emotion) {
+        StringBuilder ssml = new StringBuilder();
+        ssml.append("<speak>");
+        
+        // Apply emotion-specific prosody
+        if (emotion != null && emotionPitchMapping.containsKey(emotion.toLowerCase())) {
+            double pitch = getEmotionPitch(emotion);
+            double rate = getEmotionRate(emotion);
+            
+            String pitchStr = pitch >= 0 ? "+" + (int)pitch + "st" : (int)pitch + "st";
+            
+            switch (emotion.toLowerCase()) {
+                case "happy":
+                case "excited":
+                    ssml.append("<prosody rate=\"").append(rate).append("\" pitch=\"").append(pitchStr).append("\">");
+                    ssml.append(addKoreanPauses(text));
+                    ssml.append("</prosody>");
+                    break;
+                    
+                case "sad":
+                    ssml.append("<prosody rate=\"").append(rate).append("\" pitch=\"").append(pitchStr).append("\">");
+                    ssml.append("<emphasis level=\"reduced\">");
+                    ssml.append(addKoreanPauses(text));
+                    ssml.append("</emphasis></prosody>");
+                    break;
+                    
+                case "angry":
+                    ssml.append("<prosody rate=\"").append(rate).append("\" pitch=\"").append(pitchStr).append("\">");
+                    ssml.append("<emphasis level=\"strong\">");
+                    ssml.append(addKoreanPauses(text));
+                    ssml.append("</emphasis></prosody>");
+                    break;
+                    
+                case "fearful":
+                    ssml.append("<prosody rate=\"").append(rate).append("\" pitch=\"").append(pitchStr).append("\">");
+                    ssml.append("<emphasis level=\"moderate\">");
+                    ssml.append(addKoreanPauses(text));
+                    ssml.append("</emphasis></prosody>");
+                    break;
+                    
+                default:
+                    ssml.append(addKoreanPauses(text));
+            }
+        } else {
+            // Default: add Korean pauses without emotion
+            ssml.append(addKoreanPauses(text));
+        }
+        
+        ssml.append("</speak>");
+        return ssml.toString();
+    }
+    
+    /**
+     * Add natural pauses for Korean language patterns
+     */
+    private String addKoreanPauses(String text) {
+        // Korean-optimized text with natural pauses
+        String processedText = text;
+        
+        // Add natural pauses after sentence endings in Korean
+        processedText = processedText.replaceAll("([.!?])", "$1<break time=\"500ms\"/>");
+        
+        // Add shorter pauses after commas
+        processedText = processedText.replaceAll("(,)", "$1<break time=\"300ms\"/>");
+        
+        // Add pauses after Korean conjunctive particles
+        processedText = processedText.replaceAll("(그리고)", "$1<break time=\"200ms\"/>");
+        processedText = processedText.replaceAll("(하지만)", "$1<break time=\"200ms\"/>");
+        processedText = processedText.replaceAll("(그런데)", "$1<break time=\"200ms\"/>");
+        processedText = processedText.replaceAll("(그래서)", "$1<break time=\"200ms\"/>");
+        
+        // Add pauses after Korean topic/subject particles when followed by long phrases
+        processedText = processedText.replaceAll("([가-힣]+[는은이가를]\\s)", "$1<break time=\"150ms\"/>");
+        
+        // Apply Korean pronunciation dictionary
+        processedText = applyKoreanPronunciationDictionary(processedText);
+        
+        return processedText;
+    }
+    
+    /**
+     * Apply Korean pronunciation dictionary for gaming terms and common expressions
+     */
+    private String applyKoreanPronunciationDictionary(String text) {
+        // Korean pronunciation dictionary for gaming terms
+        Map<String, String> pronunciationDict = new HashMap<>();
+        
+        // Gaming terms
+        pronunciationDict.put("마인크래프트", "<phoneme alphabet=\"ipa\" ph=\"maɪnkɯɾæpɯtɯ\">마인크래프트</phoneme>");
+        pronunciationDict.put("인벤토리", "<phoneme alphabet=\"ipa\" ph=\"ɪnbentori\">인벤토리</phoneme>");
+        pronunciationDict.put("크리퍼", "<phoneme alphabet=\"ipa\" ph=\"kɯɾipʰʌ\">크리퍼</phoneme>");
+        pronunciationDict.put("엔더맨", "<phoneme alphabet=\"ipa\" ph=\"endʌmæn\">엔더맨</phoneme>");
+        pronunciationDict.put("레드스톤", "<phoneme alphabet=\"ipa\" ph=\"ɾeɾɯstʰon\">레드스톤</phoneme>");
+        
+        // Common expressions with natural pronunciation
+        pronunciationDict.put("안녕하세요", "<phoneme alphabet=\"ipa\" ph=\"annjʌŋhasejo\">안녕하세요</phoneme>");
+        pronunciationDict.put("감사합니다", "<phoneme alphabet=\"ipa\" ph=\"kamsahamnida\">감사합니다</phoneme>");
+        pronunciationDict.put("죄송합니다", "<phoneme alphabet=\"ipa\" ph=\"tʃesɔŋhamnida\">죄송합니다</phoneme>");
+        
+        // Apply pronunciation corrections
+        String processedText = text;
+        for (Map.Entry<String, String> entry : pronunciationDict.entrySet()) {
+            processedText = processedText.replace(entry.getKey(), entry.getValue());
+        }
+        
+        return processedText;
+    }
+    
+    /**
+     * Detect and apply appropriate intonation patterns for Korean sentences
+     */
+    private String applyKoreanIntonationPatterns(String text) {
+        String processedText = text;
+        
+        // Question patterns (의문문)
+        if (processedText.matches(".*[가-힣]*[니까까나요인가]\\?.*")) {
+            // Rising intonation for questions
+            processedText = "<prosody contour=\"(0%,+0st)(50%,+2st)(100%,+5st)\">" + processedText + "</prosody>";
+        }
+        // Exclamation patterns (감탄문)
+        else if (processedText.matches(".*[!].*")) {
+            // Emphatic intonation for exclamations
+            processedText = "<prosody contour=\"(0%,+2st)(30%,+4st)(70%,+3st)(100%,+0st)\">" + processedText + "</prosody>";
+        }
+        // Statement patterns with falling intonation (평서문)
+        else if (processedText.matches(".*[다요니다습니다][\\.]*$")) {
+            // Falling intonation for statements
+            processedText = "<prosody contour=\"(0%,+0st)(80%,+1st)(100%,-2st)\">" + processedText + "</prosody>";
+        }
+        
+        return processedText;
+    }
+    
+    /**
+     * Enhanced SSML synthesis with full Korean optimization
+     */
+    public byte[] synthesizeAdvancedKoreanSpeech(String text, String emotion) throws ServiceException {
+        if (currentState != State.RUNNING) {
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "TextToSpeech service is not running");
+        }
+        
+        if (text == null || text.trim().isEmpty()) {
+            throw new IllegalArgumentException("Text cannot be null or empty");
+        }
+        
+        try {
+            // Apply advanced Korean processing
+            String processedText = text;
+            
+            // 1. Apply intonation patterns
+            processedText = applyKoreanIntonationPatterns(processedText);
+            
+            // 2. Add emotion-specific SSML
+            String ssmlText = addEmotionSSML(processedText, emotion);
+            
+            // 3. Check cache
+            String cacheKey = "advanced|" + ssmlText + "|" + (emotion != null ? emotion : "default");
+            if (audioCache.containsKey(cacheKey)) {
+                logger.info(LOG_PREFIX + "Retrieved advanced Korean audio from cache");
+                return audioCache.get(cacheKey);
+            }
+            
+            // TODO: Implement actual Google Cloud TTS synthesis with advanced SSML
+            logger.info(LOG_PREFIX + "Synthesizing advanced Korean speech with " + 
+                       (emotion != null ? emotion : "default") + " emotion and intonation patterns");
+            
+            // Placeholder: return empty byte array
+            byte[] audioData = new byte[0];
+            
+            // Cache the result
+            if (audioCache.size() < maxCacheSize) {
+                audioCache.put(cacheKey, audioData);
+            }
+            
+            logger.info(LOG_PREFIX + "Advanced Korean speech synthesis completed (placeholder)");
+            return audioData;
+            
+        } catch (Exception e) {
+            currentHealth = ServiceHealth.degraded("Advanced Korean synthesis failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "Failed to synthesize advanced Korean speech: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
      * Get available emotion types
      */
     public String[] getAvailableEmotions() {
