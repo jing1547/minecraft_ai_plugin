@@ -366,12 +366,45 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return true;
             }
             
-            // Simple implementation - just notify player
-            player.sendMessage("§a[Voice AI] Voice processing started! Start speaking...");
-            player.sendMessage("§7[Voice AI] Say '!help' for voice commands or speak naturally to chat with AI.");
-            player.sendMessage("§7[Voice AI] Note: Connect your audio client to the WebSocket server to send audio data.");
+            // Get AudioCaptureService and start real microphone monitoring
+            try {
+                ServiceManager serviceManager = plugin.getServiceManager();
+                if (serviceManager == null) {
+                    player.sendMessage("§c[Voice AI] ServiceManager를 찾을 수 없습니다.");
+                    return true;
+                }
+                
+                Service audioCaptureService = serviceManager.getService("audio_capture");
+                if (audioCaptureService == null) {
+                    player.sendMessage("§c[Voice AI] AudioCaptureService를 찾을 수 없습니다.");
+                    return true;
+                }
+                
+                if (!(audioCaptureService instanceof AudioCaptureService)) {
+                    player.sendMessage("§c[Voice AI] AudioCaptureService 타입이 올바르지 않습니다.");
+                    return true;
+                }
+                
+                AudioCaptureService audioService = (AudioCaptureService) audioCaptureService;
+                
+                // Start audio monitoring with real microphone
+                audioService.startAudioMonitoring(player);
+                
+                // Start periodic status updates  
+                startPeriodicStatusUpdates(player, audioService);
+                
+                player.sendMessage("§a[Voice AI] 음성 처리가 시작되었습니다! 말씀해보세요...");
+                player.sendMessage("§7[Voice AI] 마이크가 활성화되어 실시간으로 음성을 인식합니다.");
+                player.sendMessage("§7[Voice AI] '!help' 명령어나 자연스럽게 AI와 대화할 수 있습니다.");
+                player.sendMessage("§e[Voice AI] 중지하려면 '/ai voice stop' 명령어를 사용하세요.");
+                
+            } catch (Exception e) {
+                logger.warning("Failed to start audio monitoring for voice processing: " + e.getMessage());
+                player.sendMessage("§c[Voice AI] 마이크 연결 실패: " + e.getMessage());
+                player.sendMessage("§7[Voice AI] WebSocket 서버를 통한 외부 오디오 클라이언트 연결을 시도해보세요.");
+            }
             
-            logger.info("Voice processing command executed for player: " + player.getName());
+            logger.info("Voice processing with real microphone started for player: " + player.getName());
             
             return true;
             
@@ -397,9 +430,34 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             
             Player player = (Player) sender;
             
-            // Simple implementation - just notify player
-            player.sendMessage("§a[Voice AI] Voice processing stopped successfully.");
-            logger.info("Voice processing stop command executed for player: " + player.getName());
+            // Stop real microphone monitoring
+            try {
+                ServiceManager serviceManager = plugin.getServiceManager();
+                if (serviceManager != null) {
+                    Service audioCaptureService = serviceManager.getService("audio_capture");
+                    if (audioCaptureService instanceof AudioCaptureService) {
+                        AudioCaptureService audioService = (AudioCaptureService) audioCaptureService;
+                        
+                        // Stop audio monitoring
+                        audioService.stopAudioMonitoring(player);
+                        
+                        // Stop periodic updates
+                        stopPeriodicStatusUpdates(player);
+                        
+                        player.sendMessage("§a[Voice AI] 음성 처리가 중지되었습니다.");
+                        player.sendMessage("§7[Voice AI] 마이크 연결이 해제되었습니다.");
+                    } else {
+                        player.sendMessage("§a[Voice AI] Voice processing stopped successfully.");
+                    }
+                } else {
+                    player.sendMessage("§a[Voice AI] Voice processing stopped successfully.");
+                }
+            } catch (Exception e) {
+                logger.warning("Error stopping audio monitoring: " + e.getMessage());
+                player.sendMessage("§a[Voice AI] Voice processing stopped successfully.");
+            }
+            
+            logger.info("Voice processing with microphone stopped for player: " + player.getName());
             
             return true;
             
