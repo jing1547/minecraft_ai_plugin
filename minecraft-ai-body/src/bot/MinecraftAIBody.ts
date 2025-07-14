@@ -7,23 +7,45 @@ import { Entity } from 'prismarine-entity';
 import { Item } from 'prismarine-item';
 import { Block } from 'prismarine-block';
 import { Recipe } from 'prismarine-recipe';
-import WebSocket from 'ws';
+// WebSocket functionality moved to index.ts - removed imports
+// import WebSocket from 'ws';
+// import { BaseMessage, MessageType, Priority, CommandMessage, ResponseMessage, EventMessage } from '../protocol/types';
+// import { MessageSerializer } from '../protocol/MessageSerializer';
 
-// WebSocket command interfaces
-export interface WebSocketCommand {
-    id: string;
-    type: string;
-    payload?: any;
-    timestamp: number;
+// WebSocket functionality moved to index.ts - interfaces commented out
+/*
+export interface WebSocketCommand extends BaseMessage {
+    type: MessageType;
+    payload: {
+        action: string;
+        parameters: { [key: string]: any };
+        timeout?: number;
+    };
 }
 
-export interface WebSocketResponse {
-    id: string;
-    type: string;
-    success: boolean;
-    result?: any;
-    error?: string;
-    timestamp: number;
+export interface WebSocketResponse extends BaseMessage {
+    type: MessageType.RESPONSE;
+    correlationId: string;
+    payload: {
+        success: boolean;
+        result?: any;
+        error?: {
+            code: string;
+            message: string;
+            details?: any;
+        };
+        executionTime?: number;
+    };
+}
+
+function createWebSocketResponse(
+    correlationId: string,
+    success: boolean,
+    result?: any,
+    error?: string,
+    executionTime?: number
+): WebSocketResponse {
+    // Implementation moved to index.ts
 }
 
 export interface CommandHandler {
@@ -33,6 +55,7 @@ export interface CommandHandler {
 export interface CommandRegistry {
     [commandType: string]: CommandHandler;
 }
+*/
 
 // Event Reporting and Logging interfaces
 export interface LogEntry {
@@ -284,12 +307,14 @@ export class MinecraftAIBody extends EventEmitter {
     private movementTimeout: NodeJS.Timeout | null = null;
     private pathfindingInProgress: boolean = false;
     
-    // WebSocket management
+    // WebSocket functionality moved to index.ts - properties commented out
+    /*
     private webSocket: WebSocket | null = null;
     private webSocketConnected: boolean = false;
     private webSocketReconnectTimeout: NodeJS.Timeout | null = null;
     private commandRegistry: CommandRegistry = {};
     private pendingCommands: Map<string, (response: WebSocketResponse) => void> = new Map();
+    */
 
     // Event Reporting and Logging System
     private loggingConfig: LoggingConfig;
@@ -364,13 +389,14 @@ export class MinecraftAIBody extends EventEmitter {
             reportingInterval: 5000 // 5 seconds
         };
         
-        // Initialize WebSocket command registry
+        // WebSocket functionality moved to index.ts - initialization commented out
+        /*
         this.initializeCommandRegistry();
         
-        // Initialize WebSocket connection if URL is provided
         if (this.options.webSocketUrl) {
             this.initializeWebSocket();
         }
+        */
         
         // Start event reporting
         this.startEventReporting();
@@ -1922,640 +1948,57 @@ export class MinecraftAIBody extends EventEmitter {
     }
 
     /**
-     * Initialize WebSocket command registry
+     * WebSocket functionality moved to index.ts - method commented out
      */
+    /*
     private initializeCommandRegistry(): void {
-        // System commands
-        this.commandRegistry['ping'] = async (command: WebSocketCommand) => {
-            return {
-                id: command.id,
-                type: 'pong',
-                success: true,
-                result: { message: 'Pong!' },
-                timestamp: Date.now()
-            };
-        };
-
-        // Movement commands
-        this.commandRegistry['moveTo'] = async (command: WebSocketCommand) => {
-            const { x, y, z, options } = command.payload;
-            try {
-                const result = await this.moveTo(x, y, z, options);
-                return {
-                    id: command.id,
-                    type: 'moveTo',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'moveTo',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['moveToEntity'] = async (command: WebSocketCommand) => {
-            const { entityId, options } = command.payload;
-            try {
-                const result = await this.moveToEntity(entityId, options);
-                return {
-                    id: command.id,
-                    type: 'moveToEntity',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'moveToEntity',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['followEntity'] = async (command: WebSocketCommand) => {
-            const { entityId, options } = command.payload;
-            try {
-                await this.followEntity(entityId, options);
-                return {
-                    id: command.id,
-                    type: 'followEntity',
-                    success: true,
-                    result: { message: 'Now following entity' },
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'followEntity',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['stopMoving'] = async (command: WebSocketCommand) => {
-            try {
-                this.stopMoving();
-                return {
-                    id: command.id,
-                    type: 'stopMoving',
-                    success: true,
-                    result: { message: 'Movement stopped' },
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'stopMoving',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['stopFollowing'] = async (command: WebSocketCommand) => {
-            try {
-                this.stopFollowing();
-                return {
-                    id: command.id,
-                    type: 'stopFollowing',
-                    success: true,
-                    result: { message: 'Stopped following' },
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'stopFollowing',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        // Interaction commands
-        this.commandRegistry['placeBlock'] = async (command: WebSocketCommand) => {
-            const { position, blockType } = command.payload;
-            try {
-                const result = await this.placeBlock(position, blockType);
-                return {
-                    id: command.id,
-                    type: 'placeBlock',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'placeBlock',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['breakBlock'] = async (command: WebSocketCommand) => {
-            const { position } = command.payload;
-            try {
-                const result = await this.breakBlock(position);
-                return {
-                    id: command.id,
-                    type: 'breakBlock',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'breakBlock',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['collectItem'] = async (command: WebSocketCommand) => {
-            const { itemType } = command.payload;
-            try {
-                const result = await this.collectItem(itemType);
-                return {
-                    id: command.id,
-                    type: 'collectItem',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'collectItem',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['useItem'] = async (command: WebSocketCommand) => {
-            const { itemType } = command.payload;
-            try {
-                const result = await this.useItem(itemType);
-                return {
-                    id: command.id,
-                    type: 'useItem',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'useItem',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['attackEntity'] = async (command: WebSocketCommand) => {
-            const { entityId } = command.payload;
-            try {
-                const result = await this.attackEntity(entityId);
-                return {
-                    id: command.id,
-                    type: 'attackEntity',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'attackEntity',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['interactWithEntity'] = async (command: WebSocketCommand) => {
-            const { entityId } = command.payload;
-            try {
-                const result = await this.interactWithEntity(entityId);
-                return {
-                    id: command.id,
-                    type: 'interactWithEntity',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'interactWithEntity',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['equipItem'] = async (command: WebSocketCommand) => {
-            const { itemType } = command.payload;
-            try {
-                const result = await this.equipItem(itemType);
-                return {
-                    id: command.id,
-                    type: 'equipItem',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'equipItem',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['craftItem'] = async (command: WebSocketCommand) => {
-            const { itemType, options } = command.payload;
-            try {
-                const result = await this.craftItem(itemType, options);
-                return {
-                    id: command.id,
-                    type: 'craftItem',
-                    success: result.success,
-                    result,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'craftItem',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        // Information commands
-        this.commandRegistry['getStatus'] = async (command: WebSocketCommand) => {
-            try {
-                const status = this.getStatus();
-                return {
-                    id: command.id,
-                    type: 'getStatus',
-                    success: true,
-                    result: status,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'getStatus',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['getInventory'] = async (command: WebSocketCommand) => {
-            try {
-                const inventory = this.getInventory();
-                return {
-                    id: command.id,
-                    type: 'getInventory',
-                    success: true,
-                    result: inventory,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'getInventory',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['getNearbyEntities'] = async (command: WebSocketCommand) => {
-            const { filter } = command.payload;
-            try {
-                const entities = this.getNearbyEntities(filter);
-                return {
-                    id: command.id,
-                    type: 'getNearbyEntities',
-                    success: true,
-                    result: entities,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'getNearbyEntities',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['getNearbyBlocks'] = async (command: WebSocketCommand) => {
-            const { blockType, maxDistance } = command.payload;
-            try {
-                const blocks = this.getNearbyBlocks(blockType, maxDistance);
-                return {
-                    id: command.id,
-                    type: 'getNearbyBlocks',
-                    success: true,
-                    result: blocks,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'getNearbyBlocks',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['findItemInInventory'] = async (command: WebSocketCommand) => {
-            const { itemType } = command.payload;
-            try {
-                const item = this.findItemInInventory(itemType);
-                return {
-                    id: command.id,
-                    type: 'findItemInInventory',
-                    success: true,
-                    result: item,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'findItemInInventory',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        // Logging and Event Reporting commands
-        this.commandRegistry['getLogEntries'] = async (command: WebSocketCommand) => {
-            const { count, level } = command.payload || {};
-            try {
-                const entries = this.getLogEntries(count, level);
-                return {
-                    id: command.id,
-                    type: 'getLogEntries',
-                    success: true,
-                    result: entries,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'getLogEntries',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['getEventReports'] = async (command: WebSocketCommand) => {
-            const { count, type } = command.payload || {};
-            try {
-                const reports = this.getEventReports(count, type);
-                return {
-                    id: command.id,
-                    type: 'getEventReports',
-                    success: true,
-                    result: reports,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'getEventReports',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['updateLoggingConfig'] = async (command: WebSocketCommand) => {
-            const { config } = command.payload;
-            try {
-                this.updateLoggingConfig(config);
-                return {
-                    id: command.id,
-                    type: 'updateLoggingConfig',
-                    success: true,
-                    result: { message: 'Logging configuration updated' },
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'updateLoggingConfig',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['getLoggingConfig'] = async (command: WebSocketCommand) => {
-            try {
-                const config = this.getLoggingConfig();
-                return {
-                    id: command.id,
-                    type: 'getLoggingConfig',
-                    success: true,
-                    result: config,
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'getLoggingConfig',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['clearLogs'] = async (command: WebSocketCommand) => {
-            try {
-                this.clearLogs();
-                return {
-                    id: command.id,
-                    type: 'clearLogs',
-                    success: true,
-                    result: { message: 'Log entries cleared' },
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'clearLogs',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
-
-        this.commandRegistry['clearEvents'] = async (command: WebSocketCommand) => {
-            try {
-                this.clearEvents();
-                return {
-                    id: command.id,
-                    type: 'clearEvents',
-                    success: true,
-                    result: { message: 'Event reports cleared' },
-                    timestamp: Date.now()
-                };
-            } catch (error) {
-                return {
-                    id: command.id,
-                    type: 'clearEvents',
-                    success: false,
-                    error: (error as Error).message,
-                    timestamp: Date.now()
-                };
-            }
-        };
+        // All command registry code moved to index.ts
     }
 
-    /**
-     * Initialize WebSocket connection
-     */
     private initializeWebSocket(): void {
-        if (this.webSocket) {
-            this.webSocket.close();
-        }
-
-        this.webSocket = new WebSocket(this.options.webSocketUrl!);
-
-        this.webSocket.on('open', () => {
-            this.webSocketConnected = true;
-            this.emit('webSocketConnected');
-            console.log('WebSocket connected');
-        });
-
-        this.webSocket.on('error', (error) => {
-            this.webSocketConnected = false;
-            this.emit('webSocketError', error);
-            console.error('WebSocket error:', error);
-            this.reconnectWebSocket();
-        });
-
-        this.webSocket.on('close', (code, reason) => {
-            this.webSocketConnected = false;
-            this.emit('webSocketClosed', { code, reason });
-            console.log('WebSocket closed:', code, reason);
-            this.reconnectWebSocket();
-        });
-
-        this.webSocket.on('message', (data) => {
-            try {
-                const command = JSON.parse(data.toString());
-                this.handleWebSocketCommand(command);
-            } catch (error) {
-                console.error('Failed to parse WebSocket message:', error);
-            }
-        });
+        // WebSocket initialization moved to index.ts
     }
 
-    /**
-     * Reconnect WebSocket
-     */
     private reconnectWebSocket(): void {
-        if (this.webSocketReconnectTimeout) {
-            clearTimeout(this.webSocketReconnectTimeout);
-        }
-
-        this.webSocketReconnectTimeout = setTimeout(() => {
-            this.initializeWebSocket();
-        }, this.options.webSocketReconnectInterval!);
+        // WebSocket reconnection moved to index.ts
     }
 
-    /**
-     * Handle incoming WebSocket commands
-     */
-    private handleWebSocketCommand(command: WebSocketCommand): void {
-        const handler = this.commandRegistry[command.type];
-        if (handler) {
-            this.pendingCommands.set(command.id, (response) => {
-                this.sendWebSocketMessage(response);
-            });
-            handler(command).then(response => {
-                this.sendWebSocketMessage(response);
-            }).catch(error => {
-                this.sendWebSocketMessage({
-                    id: command.id,
-                    type: 'error',
-                    success: false,
-                    error: error.message,
-                    timestamp: Date.now()
-                });
-            });
-        } else {
-            this.sendWebSocketMessage({
-                id: command.id,
-                type: 'error',
-                success: false,
-                error: `Command type "${command.type}" not found`,
-                timestamp: Date.now()
-            });
-        }
+    private handleWebSocketCommand(command: any): void {
+        // WebSocket command handling moved to index.ts
     }
 
-    /**
-     * Send a message to the WebSocket client
-     */
-    private sendWebSocketMessage(message: WebSocketResponse): void {
-        if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-            this.webSocket.send(JSON.stringify(message));
-        } else {
-            console.warn('WebSocket not open, cannot send message:', message);
-        }
+    private sendWebSocketMessage(message: any): void {
+        // WebSocket message sending moved to index.ts
     }
+
+    public connectWebSocket(url: string): void {
+        // WebSocket connection moved to index.ts
+    }
+
+    public disconnectWebSocket(): void {
+        // WebSocket disconnection moved to index.ts
+    }
+
+    public isWebSocketConnected(): boolean {
+        return false; // WebSocket functionality moved to index.ts
+    }
+
+    public registerCommandHandler(commandType: string, handler: any): void {
+        // Command handler registration moved to index.ts
+    }
+
+    public unregisterCommandHandler(commandType: string): void {
+        // Command handler unregistration moved to index.ts
+    }
+
+    public getRegisteredCommands(): string[] {
+        return []; // Command registry moved to index.ts
+    }
+
+    public sendCommandResponse(response: any): void {
+        // Command response sending moved to index.ts
+    }
+    */
 
     /**
      * Cleanup resources
@@ -2567,13 +2010,13 @@ export class MinecraftAIBody extends EventEmitter {
         // Stop event reporting
         this.stopEventReporting();
         
-        // Cleanup WebSocket
-        if (this.webSocket) {
-            this.webSocket.close();
-        }
-        if (this.webSocketReconnectTimeout) {
-            clearTimeout(this.webSocketReconnectTimeout);
-        }
+        // WebSocket cleanup moved to index.ts
+        // if (this.webSocket) {
+        //     this.webSocket.close();
+        // }
+        // if (this.webSocketReconnectTimeout) {
+        //     clearTimeout(this.webSocketReconnectTimeout);
+        // }
         
         // Log shutdown
         this.logInfo('system', 'MinecraftAIBody destroyed and resources cleaned up');
@@ -2601,62 +2044,6 @@ export class MinecraftAIBody extends EventEmitter {
         });
         
         return items;
-    }
-
-    // WebSocket Connection Management
-    
-    /**
-     * Connect to WebSocket server
-     */
-    public connectWebSocket(url: string): void {
-        this.options.webSocketUrl = url;
-        this.initializeWebSocket();
-    }
-
-    /**
-     * Disconnect from WebSocket server
-     */
-    public disconnectWebSocket(): void {
-        if (this.webSocket) {
-            this.webSocket.close();
-            this.webSocket = null;
-        }
-        this.webSocketConnected = false;
-    }
-
-    /**
-     * Check if WebSocket is connected
-     */
-    public isWebSocketConnected(): boolean {
-        return this.webSocketConnected;
-    }
-
-    /**
-     * Register a custom command handler
-     */
-    public registerCommandHandler(commandType: string, handler: CommandHandler): void {
-        this.commandRegistry[commandType] = handler;
-    }
-
-    /**
-     * Unregister a command handler
-     */
-    public unregisterCommandHandler(commandType: string): void {
-        delete this.commandRegistry[commandType];
-    }
-
-    /**
-     * Get list of registered command types
-     */
-    public getRegisteredCommands(): string[] {
-        return Object.keys(this.commandRegistry);
-    }
-
-    /**
-     * Send a command response to WebSocket client
-     */
-    public sendCommandResponse(response: WebSocketResponse): void {
-        this.sendWebSocketMessage(response);
     }
 
     // ===================================================================
@@ -2713,9 +2100,10 @@ export class MinecraftAIBody extends EventEmitter {
             this.outputToConsole(entry);
         }
 
-        if (this.loggingConfig.enableWebSocket && this.webSocketConnected) {
-            this.sendLogToWebSocket(entry);
-        }
+        // WebSocket logging moved to index.ts
+        // if (this.loggingConfig.enableWebSocket && this.webSocketConnected) {
+        //     this.sendLogToWebSocket(entry);
+        // }
 
         // Emit log event
         this.emit('log', entry);
@@ -2766,10 +2154,10 @@ export class MinecraftAIBody extends EventEmitter {
         // Log the event
         this.log(severity, 'event', `Event: ${type}`, data);
 
-        // Send to WebSocket if connected
-        if (this.webSocketConnected) {
-            this.sendEventToWebSocket(eventReport);
-        }
+        // WebSocket event reporting moved to index.ts
+        // if (this.webSocketConnected) {
+        //     this.sendEventToWebSocket(eventReport);
+        // }
 
         // Emit event
         this.emit('event', eventReport);
@@ -2886,24 +2274,26 @@ export class MinecraftAIBody extends EventEmitter {
      * Send log entry to WebSocket
      */
     private sendLogToWebSocket(entry: LogEntry): void {
-        if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-            this.webSocket.send(JSON.stringify({
-                type: 'log',
-                data: entry
-            }));
-        }
+        // WebSocket functionality moved to index.ts
+        // if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        //     this.webSocket.send(JSON.stringify({
+        //         type: 'log',
+        //         data: entry
+        //     }));
+        // }
     }
 
     /**
      * Send event report to WebSocket
      */
     private sendEventToWebSocket(eventReport: EventReport): void {
-        if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
-            this.webSocket.send(JSON.stringify({
-                type: 'event',
-                data: eventReport
-            }));
-        }
+        // WebSocket functionality moved to index.ts
+        // if (this.webSocket && this.webSocket.readyState === WebSocket.OPEN) {
+        //     this.webSocket.send(JSON.stringify({
+        //         type: 'event',
+        //         data: eventReport
+        //     }));
+        // }
     }
 
     /**

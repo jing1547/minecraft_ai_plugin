@@ -1,10 +1,14 @@
 import { MinecraftAIBody as AIBody, MinecraftAIBodyOptions } from './bot/MinecraftAIBody';
+import { WebSocketClient, WebSocketClientConfig, ConnectionState } from './network/WebSocketClient';
+import { BaseMessage, MessageType, CommandMessage, ResponseMessage, Priority } from './protocol/types';
+import { MessageSerializer } from './protocol/MessageSerializer';
 
 /**
  * Minecraft AI Body - Entry Point
  * 
  * This is the main entry point for the Minecraft AI Body component.
- * It initializes and starts the comprehensive MinecraftAIBody class.
+ * It initializes and starts the comprehensive MinecraftAIBody class with
+ * proper WebSocket client for Java server communication.
  */
 
 interface AppConfig {
@@ -17,7 +21,8 @@ interface AppConfig {
     auth: 'microsoft' | 'mojang' | 'offline';
   };
   websocket: {
-    url: string;
+    host: string;
+    port: number;
     reconnectInterval: number;
   };
   bot: {
@@ -30,8 +35,10 @@ interface AppConfig {
 
 class MinecraftAIBodyApp {
   private aiBody: AIBody | null = null;
+  private wsClient: WebSocketClient | null = null;
   private config: AppConfig;
   private testMode: boolean = false;
+  private commandId: number = 0;
 
   constructor(config: AppConfig) {
     this.config = config;
@@ -39,7 +46,261 @@ class MinecraftAIBodyApp {
   }
 
   /**
-   * Initialize the MinecraftAIBody instance
+   * Initialize the WebSocket client with proper protocol support
+   */
+  private initializeWebSocketClient(): void {
+    if (this.testMode) {
+      console.log('🧪 Test mode: WebSocket client disabled');
+      return;
+    }
+
+    const wsConfig: WebSocketClientConfig = {
+      host: this.config.websocket.host,
+      port: this.config.websocket.port,
+      reconnectInterval: this.config.websocket.reconnectInterval,
+      maxReconnectInterval: 60000,
+      maxRetries: 10,
+      timeoutMs: 5000,
+      enableLogging: true,
+      enableMessageQueue: true,
+      maxQueueSize: 100
+    };
+
+    this.wsClient = new WebSocketClient(wsConfig);
+    this.setupWebSocketEventHandlers();
+  }
+
+  /**
+   * Setup WebSocket event handlers for proper protocol communication
+   */
+  private setupWebSocketEventHandlers(): void {
+    if (!this.wsClient) return;
+
+    this.wsClient.on('connected', () => {
+      console.log('🔌 WebSocket connected to Java server');
+      this.sendHandshakeMessage();
+    });
+
+    this.wsClient.on('disconnected', (reason) => {
+      console.log('🔌 WebSocket disconnected:', reason);
+    });
+
+    this.wsClient.on('message', (message: BaseMessage) => {
+      this.handleWebSocketMessage(message);
+    });
+
+    this.wsClient.on('error', (error) => {
+      console.error('❌ WebSocket error:', error.message);
+    });
+
+    this.wsClient.on('reconnecting', (attempt) => {
+      console.log(`🔄 WebSocket reconnecting (attempt ${attempt})`);
+    });
+  }
+
+  /**
+   * Send initial handshake message to Java server
+   */
+  private sendHandshakeMessage(): void {
+    if (!this.wsClient) return;
+
+    const handshakeMessage: BaseMessage = {
+      type: MessageType.COMMAND,
+      id: this.generateCommandId(),
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      priority: Priority.HIGH,
+      payload: {
+        action: 'handshake',
+        parameters: {
+          clientType: 'minecraft-ai-body',
+          version: '1.0.0',
+          capabilities: ['movement', 'interaction', 'inventory', 'combat', 'building']
+        }
+      }
+    };
+
+    this.wsClient.sendMessage(handshakeMessage);
+    console.log('🤝 Sent handshake message to Java server');
+  }
+
+  /**
+   * Handle incoming WebSocket messages from Java server
+   */
+  private handleWebSocketMessage(message: BaseMessage): void {
+    console.log('📨 Received message from Java server:', {
+      type: message.type,
+      id: message.id,
+      action: message.payload?.action || 'unknown'
+    });
+
+    try {
+      switch (message.type) {
+        case MessageType.COMMAND:
+          this.handleCommandMessage(message as CommandMessage);
+          break;
+        case MessageType.RESPONSE:
+          this.handleResponseMessage(message as ResponseMessage);
+          break;
+        default:
+          console.warn('⚠️ Unknown message type:', message.type);
+      }
+    } catch (error) {
+      console.error('❌ Error handling WebSocket message:', error);
+      this.sendErrorResponse(message.id, error as Error);
+    }
+  }
+
+  /**
+   * Handle command messages from Java server
+   */
+  private async handleCommandMessage(command: CommandMessage): Promise<void> {
+    if (!this.aiBody) {
+      this.sendErrorResponse(command.id, new Error('AI Body not initialized'));
+      return;
+    }
+
+    const { action, parameters } = command.payload;
+    console.log(`🎮 Executing command: ${action}`, parameters);
+
+    try {
+      let result: any;
+      const startTime = Date.now();
+
+      // Route commands to AI Body methods
+      switch (action) {
+        case 'moveTo':
+          result = await this.aiBody.moveTo(
+            parameters.x, 
+            parameters.y, 
+            parameters.z, 
+            parameters.options
+          );
+          break;
+
+        case 'followEntity':
+          await this.aiBody.followEntity(parameters.entityId, parameters.options);
+          result = { message: 'Following entity', entityId: parameters.entityId };
+          break;
+
+        case 'stopMoving':
+          this.aiBody.stopMoving();
+          result = { message: 'Movement stopped' };
+          break;
+
+        case 'placeBlock':
+          result = await this.aiBody.placeBlock(parameters.position, parameters.blockType);
+          break;
+
+        case 'breakBlock':
+          result = await this.aiBody.breakBlock(parameters.position);
+          break;
+
+        case 'collectItem':
+          result = await this.aiBody.collectItem(parameters.itemType);
+          break;
+
+        case 'getStatus':
+          result = await this.aiBody.getStatus();
+          break;
+
+        case 'ping':
+          result = { message: 'Pong!', timestamp: new Date().toISOString() };
+          break;
+
+        default:
+          throw new Error(`Unknown command: ${action}`);
+      }
+
+      const executionTime = Date.now() - startTime;
+      this.sendSuccessResponse(command.id, result, executionTime);
+
+    } catch (error) {
+      console.error(`❌ Command execution failed (${action}):`, error);
+      this.sendErrorResponse(command.id, error as Error);
+    }
+  }
+
+  /**
+   * Handle response messages from Java server
+   */
+  private handleResponseMessage(response: ResponseMessage): void {
+    console.log('📨 Received response:', {
+      id: response.id,
+      correlationId: response.correlationId,
+      success: response.payload.success
+    });
+
+    // Handle server responses here if needed
+    if (!response.payload.success) {
+      console.error('❌ Server operation failed:', response.payload.error);
+    }
+  }
+
+  /**
+   * Send success response to Java server
+   */
+  private sendSuccessResponse(correlationId: string, result: any, executionTime?: number): void {
+    if (!this.wsClient) return;
+
+    const payload: any = {
+      success: true,
+      result
+    };
+
+    // Only include executionTime if it's defined
+    if (executionTime !== undefined) {
+      payload.executionTime = executionTime;
+    }
+
+    const response: ResponseMessage = {
+      type: MessageType.RESPONSE,
+      id: this.generateCommandId(),
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      priority: Priority.NORMAL,
+      correlationId,
+      payload
+    };
+
+    this.wsClient.sendMessage(response);
+  }
+
+  /**
+   * Send error response to Java server
+   */
+  private sendErrorResponse(correlationId: string, error: Error): void {
+    if (!this.wsClient) return;
+
+    const response: ResponseMessage = {
+      type: MessageType.RESPONSE,
+      id: this.generateCommandId(),
+      timestamp: new Date().toISOString(),
+      version: '1.0.0',
+      priority: Priority.NORMAL,
+      correlationId,
+      payload: {
+        success: false,
+        error: {
+          code: error.name || 'UNKNOWN_ERROR',
+          message: error.message,
+          details: error.stack
+        }
+      }
+    };
+
+    this.wsClient.sendMessage(response);
+  }
+
+  /**
+   * Generate unique command ID
+   */
+  private generateCommandId(): string {
+    return `cmd-${Date.now()}-${++this.commandId}`;
+  }
+
+  /**
+   * Initialize the MinecraftAIBody instance (without WebSocket integration)
    */
   private initializeAIBody(): void {
     const options: MinecraftAIBodyOptions = {
@@ -52,15 +313,10 @@ class MinecraftAIBodyApp {
       retryDelay: this.config.bot.retryDelay,
       autoCollectItems: this.config.bot.autoCollectItems,
       autoEquipTools: this.config.bot.autoEquipTools
+      // Note: No WebSocket URL - handled separately now
     };
 
-    // Add WebSocket URL only if not in test mode
-    if (!this.testMode) {
-      options.webSocketUrl = this.config.websocket.url;
-      options.webSocketReconnectInterval = this.config.websocket.reconnectInterval;
-    }
-
-         this.aiBody = new AIBody(options);
+    this.aiBody = new AIBody(options);
     this.setupEventHandlers();
   }
 
@@ -99,39 +355,9 @@ class MinecraftAIBodyApp {
           health: status.health,
           food: status.food,
           position: status.position,
-          inventoryUsed: status.inventoryUsed
+          inventory: status.inventory?.length || 0
         });
       }
-    });
-
-    // Movement events
-    this.aiBody.on('movementStarted', (data) => {
-      console.log('🚶 Movement started:', data);
-    });
-
-    this.aiBody.on('movementCompleted', (data) => {
-      console.log('✅ Movement completed:', data);
-    });
-
-    this.aiBody.on('movementStopped', () => {
-      console.log('⏹️  Movement stopped');
-    });
-
-    // Interaction events
-    this.aiBody.on('blockPlaced', (data) => {
-      console.log('🧱 Block placed:', data);
-    });
-
-    this.aiBody.on('blockBroken', (data) => {
-      console.log('⛏️  Block broken:', data);
-    });
-
-    this.aiBody.on('itemCollected', (data) => {
-      console.log('📦 Item collected:', data);
-    });
-
-    this.aiBody.on('entityAttacked', (data) => {
-      console.log('⚔️  Entity attacked:', data);
     });
   }
 
@@ -216,11 +442,13 @@ class MinecraftAIBodyApp {
 
     try {
       this.initializeAIBody();
+      this.initializeWebSocketClient(); // Initialize WebSocket client
       
-      if (this.aiBody) {
-        await this.aiBody.connect();
-        console.log('✅ Minecraft AI Body started successfully');
-      }
+             if (this.aiBody && this.wsClient) {
+         await this.aiBody.connect(); // Connect to Minecraft server
+         await this.wsClient.connect(); // Connect WebSocket client
+         console.log('✅ Minecraft AI Body started successfully');
+       }
       
     } catch (error) {
       console.error('❌ Failed to start Minecraft AI Body:', error);
@@ -304,6 +532,9 @@ class MinecraftAIBodyApp {
       await this.aiBody.disconnect();
       this.aiBody.destroy();
     }
+    if (this.wsClient) {
+      await this.wsClient.disconnect();
+    }
     
     console.log('✅ Minecraft AI Body stopped');
   }
@@ -320,7 +551,8 @@ const config: AppConfig = {
     auth: (process.env.MINECRAFT_AUTH as 'microsoft' | 'mojang' | 'offline') || 'offline'
   },
   websocket: {
-    url: process.env.WEBSOCKET_URL || 'ws://localhost:8080',
+    host: process.env.WEBSOCKET_HOST || 'localhost',
+    port: parseInt(process.env.WEBSOCKET_PORT || '8080'),
     reconnectInterval: parseInt(process.env.WEBSOCKET_RECONNECT_INTERVAL || '5000')
   },
   bot: {
@@ -347,7 +579,24 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
+// Handle uncaught exceptions
+process.on('uncaughtException', async (error) => {
+  console.error('\n💥 Uncaught exception:', error);
+  await app.stop();
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+  console.error('\n💥 Unhandled rejection at:', promise, 'reason:', reason);
+  await app.stop();
+  process.exit(1);
+});
+
 // Start the application
+app.start().catch(error => {
+  console.error('💥 Failed to start application:', error);
+  process.exit(1);
+});
 app.start().catch((error) => {
   console.error('❌ Fatal error:', error);
   process.exit(1);

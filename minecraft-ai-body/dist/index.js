@@ -1,12 +1,202 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const MinecraftAIBody_1 = require("./bot/MinecraftAIBody");
+const WebSocketClient_1 = require("./network/WebSocketClient");
+const types_1 = require("./protocol/types");
 class MinecraftAIBodyApp {
     constructor(config) {
         this.aiBody = null;
+        this.wsClient = null;
         this.testMode = false;
+        this.commandId = 0;
         this.config = config;
         this.testMode = config.testMode;
+    }
+    initializeWebSocketClient() {
+        if (this.testMode) {
+            console.log('🧪 Test mode: WebSocket client disabled');
+            return;
+        }
+        const wsConfig = {
+            host: this.config.websocket.host,
+            port: this.config.websocket.port,
+            reconnectInterval: this.config.websocket.reconnectInterval,
+            maxReconnectInterval: 60000,
+            maxRetries: 10,
+            timeoutMs: 5000,
+            enableLogging: true,
+            enableMessageQueue: true,
+            maxQueueSize: 100
+        };
+        this.wsClient = new WebSocketClient_1.WebSocketClient(wsConfig);
+        this.setupWebSocketEventHandlers();
+    }
+    setupWebSocketEventHandlers() {
+        if (!this.wsClient)
+            return;
+        this.wsClient.on('connected', () => {
+            console.log('🔌 WebSocket connected to Java server');
+            this.sendHandshakeMessage();
+        });
+        this.wsClient.on('disconnected', (reason) => {
+            console.log('🔌 WebSocket disconnected:', reason);
+        });
+        this.wsClient.on('message', (message) => {
+            this.handleWebSocketMessage(message);
+        });
+        this.wsClient.on('error', (error) => {
+            console.error('❌ WebSocket error:', error.message);
+        });
+        this.wsClient.on('reconnecting', (attempt) => {
+            console.log(`🔄 WebSocket reconnecting (attempt ${attempt})`);
+        });
+    }
+    sendHandshakeMessage() {
+        if (!this.wsClient)
+            return;
+        const handshakeMessage = {
+            type: types_1.MessageType.COMMAND,
+            id: this.generateCommandId(),
+            timestamp: new Date().toISOString(),
+            version: '1.0.0',
+            priority: types_1.Priority.HIGH,
+            payload: {
+                action: 'handshake',
+                parameters: {
+                    clientType: 'minecraft-ai-body',
+                    version: '1.0.0',
+                    capabilities: ['movement', 'interaction', 'inventory', 'combat', 'building']
+                }
+            }
+        };
+        this.wsClient.sendMessage(handshakeMessage);
+        console.log('🤝 Sent handshake message to Java server');
+    }
+    handleWebSocketMessage(message) {
+        console.log('📨 Received message from Java server:', {
+            type: message.type,
+            id: message.id,
+            action: message.payload?.action || 'unknown'
+        });
+        try {
+            switch (message.type) {
+                case types_1.MessageType.COMMAND:
+                    this.handleCommandMessage(message);
+                    break;
+                case types_1.MessageType.RESPONSE:
+                    this.handleResponseMessage(message);
+                    break;
+                default:
+                    console.warn('⚠️ Unknown message type:', message.type);
+            }
+        }
+        catch (error) {
+            console.error('❌ Error handling WebSocket message:', error);
+            this.sendErrorResponse(message.id, error);
+        }
+    }
+    async handleCommandMessage(command) {
+        if (!this.aiBody) {
+            this.sendErrorResponse(command.id, new Error('AI Body not initialized'));
+            return;
+        }
+        const { action, parameters } = command.payload;
+        console.log(`🎮 Executing command: ${action}`, parameters);
+        try {
+            let result;
+            const startTime = Date.now();
+            switch (action) {
+                case 'moveTo':
+                    result = await this.aiBody.moveTo(parameters.x, parameters.y, parameters.z, parameters.options);
+                    break;
+                case 'followEntity':
+                    await this.aiBody.followEntity(parameters.entityId, parameters.options);
+                    result = { message: 'Following entity', entityId: parameters.entityId };
+                    break;
+                case 'stopMoving':
+                    this.aiBody.stopMoving();
+                    result = { message: 'Movement stopped' };
+                    break;
+                case 'placeBlock':
+                    result = await this.aiBody.placeBlock(parameters.position, parameters.blockType);
+                    break;
+                case 'breakBlock':
+                    result = await this.aiBody.breakBlock(parameters.position);
+                    break;
+                case 'collectItem':
+                    result = await this.aiBody.collectItem(parameters.itemType);
+                    break;
+                case 'getStatus':
+                    result = await this.aiBody.getStatus();
+                    break;
+                case 'ping':
+                    result = { message: 'Pong!', timestamp: new Date().toISOString() };
+                    break;
+                default:
+                    throw new Error(`Unknown command: ${action}`);
+            }
+            const executionTime = Date.now() - startTime;
+            this.sendSuccessResponse(command.id, result, executionTime);
+        }
+        catch (error) {
+            console.error(`❌ Command execution failed (${action}):`, error);
+            this.sendErrorResponse(command.id, error);
+        }
+    }
+    handleResponseMessage(response) {
+        console.log('📨 Received response:', {
+            id: response.id,
+            correlationId: response.correlationId,
+            success: response.payload.success
+        });
+        if (!response.payload.success) {
+            console.error('❌ Server operation failed:', response.payload.error);
+        }
+    }
+    sendSuccessResponse(correlationId, result, executionTime) {
+        if (!this.wsClient)
+            return;
+        const payload = {
+            success: true,
+            result
+        };
+        if (executionTime !== undefined) {
+            payload.executionTime = executionTime;
+        }
+        const response = {
+            type: types_1.MessageType.RESPONSE,
+            id: this.generateCommandId(),
+            timestamp: new Date().toISOString(),
+            version: '1.0.0',
+            priority: types_1.Priority.NORMAL,
+            correlationId,
+            payload
+        };
+        this.wsClient.sendMessage(response);
+    }
+    sendErrorResponse(correlationId, error) {
+        if (!this.wsClient)
+            return;
+        const response = {
+            type: types_1.MessageType.RESPONSE,
+            id: this.generateCommandId(),
+            timestamp: new Date().toISOString(),
+            version: '1.0.0',
+            priority: types_1.Priority.NORMAL,
+            correlationId,
+            payload: {
+                success: false,
+                error: {
+                    code: error.name || 'UNKNOWN_ERROR',
+                    message: error.message,
+                    details: error.stack
+                }
+            }
+        };
+        this.wsClient.sendMessage(response);
+    }
+    generateCommandId() {
+        return `cmd-${Date.now()}-${++this.commandId}`;
     }
     initializeAIBody() {
         const options = {
@@ -20,10 +210,6 @@ class MinecraftAIBodyApp {
             autoCollectItems: this.config.bot.autoCollectItems,
             autoEquipTools: this.config.bot.autoEquipTools
         };
-        if (!this.testMode) {
-            options.webSocketUrl = this.config.websocket.url;
-            options.webSocketReconnectInterval = this.config.websocket.reconnectInterval;
-        }
         this.aiBody = new MinecraftAIBody_1.MinecraftAIBody(options);
         this.setupEventHandlers();
     }
@@ -54,30 +240,9 @@ class MinecraftAIBodyApp {
                     health: status.health,
                     food: status.food,
                     position: status.position,
-                    inventoryUsed: status.inventoryUsed
+                    inventory: status.inventory?.length || 0
                 });
             }
-        });
-        this.aiBody.on('movementStarted', (data) => {
-            console.log('🚶 Movement started:', data);
-        });
-        this.aiBody.on('movementCompleted', (data) => {
-            console.log('✅ Movement completed:', data);
-        });
-        this.aiBody.on('movementStopped', () => {
-            console.log('⏹️  Movement stopped');
-        });
-        this.aiBody.on('blockPlaced', (data) => {
-            console.log('🧱 Block placed:', data);
-        });
-        this.aiBody.on('blockBroken', (data) => {
-            console.log('⛏️  Block broken:', data);
-        });
-        this.aiBody.on('itemCollected', (data) => {
-            console.log('📦 Item collected:', data);
-        });
-        this.aiBody.on('entityAttacked', (data) => {
-            console.log('⚔️  Entity attacked:', data);
         });
     }
     async runTestSequence() {
@@ -139,8 +304,10 @@ class MinecraftAIBodyApp {
         }
         try {
             this.initializeAIBody();
-            if (this.aiBody) {
+            this.initializeWebSocketClient();
+            if (this.aiBody && this.wsClient) {
                 await this.aiBody.connect();
+                await this.wsClient.connect();
                 console.log('✅ Minecraft AI Body started successfully');
             }
         }
@@ -211,6 +378,9 @@ class MinecraftAIBodyApp {
             await this.aiBody.disconnect();
             this.aiBody.destroy();
         }
+        if (this.wsClient) {
+            await this.wsClient.disconnect();
+        }
         console.log('✅ Minecraft AI Body stopped');
     }
 }
@@ -224,7 +394,8 @@ const config = {
         auth: process.env.MINECRAFT_AUTH || 'offline'
     },
     websocket: {
-        url: process.env.WEBSOCKET_URL || 'ws://localhost:8080',
+        host: process.env.WEBSOCKET_HOST || 'localhost',
+        port: parseInt(process.env.WEBSOCKET_PORT || '8080'),
         reconnectInterval: parseInt(process.env.WEBSOCKET_RECONNECT_INTERVAL || '5000')
     },
     bot: {
@@ -244,6 +415,20 @@ process.on('SIGTERM', async () => {
     console.log('\n🛑 Received SIGTERM, shutting down gracefully...');
     await app.stop();
     process.exit(0);
+});
+process.on('uncaughtException', async (error) => {
+    console.error('\n💥 Uncaught exception:', error);
+    await app.stop();
+    process.exit(1);
+});
+process.on('unhandledRejection', async (reason, promise) => {
+    console.error('\n💥 Unhandled rejection at:', promise, 'reason:', reason);
+    await app.stop();
+    process.exit(1);
+});
+app.start().catch(error => {
+    console.error('💥 Failed to start application:', error);
+    process.exit(1);
 });
 app.start().catch((error) => {
     console.error('❌ Fatal error:', error);
