@@ -295,7 +295,7 @@
             "description": "Add advanced audio processing to improve speech recognition accuracy in noisy gaming environments.",
             "dependencies": [],
             "details": "1. Implement noise suppression algorithm:\n```java\npublic class NoiseFilter {\n    private static final double NOISE_THRESHOLD = 0.02;\n    private double noiseLevel = 0.0;\n    \n    public byte[] filterNoise(byte[] audioData) {\n        // Convert byte array to double array for processing\n        double[] samples = bytesToDoubles(audioData);\n        \n        // Estimate noise level during silence periods\n        updateNoiseEstimate(samples);\n        \n        // Apply spectral subtraction or similar noise reduction\n        double[] filteredSamples = applySpectralSubtraction(samples, noiseLevel);\n        \n        // Convert back to byte array\n        return doublesToBytes(filteredSamples);\n    }\n    \n    private void updateNoiseEstimate(double[] samples) {\n        // Implement adaptive noise level estimation\n    }\n    \n    private double[] applySpectralSubtraction(double[] samples, double noiseLevel) {\n        // Implement spectral subtraction algorithm\n        return samples; // Placeholder\n    }\n    \n    // Conversion utilities\n    private double[] bytesToDoubles(byte[] audioData) { /* ... */ }\n    private byte[] doublesToBytes(double[] samples) { /* ... */ }\n}\n```\n2. Implement Voice Activity Detection (VAD):\n```java\npublic class VoiceActivityDetector {\n    private static final int FRAME_SIZE = 160; // 10ms at 16kHz\n    private static final double SPEECH_THRESHOLD = 0.3;\n    private static final int SPEECH_HOLD_TIME = 30; // frames\n    \n    private int speechHoldCounter = 0;\n    private boolean isSpeechDetected = false;\n    \n    public boolean detectSpeech(byte[] audioFrame) {\n        double energy = calculateEnergy(audioFrame);\n        \n        if (energy > SPEECH_THRESHOLD) {\n            speechHoldCounter = SPEECH_HOLD_TIME;\n            isSpeechDetected = true;\n        } else if (speechHoldCounter > 0) {\n            speechHoldCounter--;\n        } else {\n            isSpeechDetected = false;\n        }\n        \n        return isSpeechDetected;\n    }\n    \n    private double calculateEnergy(byte[] audioFrame) {\n        // Calculate RMS energy of the audio frame\n        double sum = 0;\n        for (int i = 0; i < audioFrame.length; i += 2) {\n            short sample = (short) ((audioFrame[i] & 0xFF) | (audioFrame[i + 1] << 8));\n            sum += sample * sample;\n        }\n        return Math.sqrt(sum / (audioFrame.length / 2));\n    }\n}\n```\n3. Create an adaptive threshold system that adjusts based on ambient noise levels\n4. Integrate both components into the audio capture pipeline",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test with various background noise samples (keyboard typing, music, other voices) mixed with speech. Measure signal-to-noise ratio improvement and speech detection accuracy."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-14T02:00:04.824Z",
+      "updated": "2025-07-14T02:11:18.066Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },
