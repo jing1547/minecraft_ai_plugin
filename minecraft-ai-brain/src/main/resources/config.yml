@@ -104,7 +104,7 @@ tts:
 
 # Audio Capture Configuration
 audio:
-  enabled: false
+  enabled: true
   capture:
     sample-rate: 16000             # Audio sample rate in Hz
     bits-per-sample: 16            # Bits per audio sample

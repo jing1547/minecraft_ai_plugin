@@ -182,14 +182,37 @@ public class AudioMessageHandler {
                 return;
             }
             
+            // Check STT service availability before starting
+            if (speechRecognitionService == null) {
+                logger.warning("SpeechRecognitionService is not available - STT functionality will not work");
+                player.sendMessage("§c[Audio] STT 서비스가 사용할 수 없습니다. 설정을 확인해주세요.");
+                return;
+            }
+            
+            if (!SpeechToTextConfig.isEnabled()) {
+                logger.warning("Speech-to-Text is disabled in configuration");
+                player.sendMessage("§c[Audio] STT가 설정에서 비활성화되어 있습니다.");
+                return;
+            }
+            
+            try {
+                SpeechToTextConfig.validateConfiguration();
+                logger.info("STT configuration validated successfully");
+            } catch (IllegalStateException e) {
+                logger.severe("STT configuration validation failed: " + e.getMessage());
+                player.sendMessage("§c[Audio] STT 설정 오류: " + e.getMessage());
+                return;
+            }
+            
             // Create or update audio session
             AudioSession session = audioSessions.computeIfAbsent(playerUUID, k -> new AudioSession(playerUUID));
             session.startSession();
             
             logger.info("Started audio recording session for player: " + player.getName());
+            logger.info("STT Service Status: Available and Ready");
             
             // Send success response through chat (WebSocket method not available)
-            player.sendMessage("§a[Audio] Recording started successfully");
+            player.sendMessage("§a[Audio] 녹음이 시작되었습니다. STT 서비스가 준비되었습니다.");
             
             // Log success response
             logger.info("Recording started response sent to " + player.getName());
@@ -300,32 +323,48 @@ public class AudioMessageHandler {
     private void processAudioForSpeechToText(Player player, byte[] audioData) {
         try {
             // Check if Speech-to-Text is enabled
-            if (!SpeechToTextConfig.isEnabled() || speechRecognitionService == null) {
-                logger.fine("Speech-to-Text is disabled, skipping processing");
+            if (!SpeechToTextConfig.isEnabled()) {
+                logger.warning("Speech-to-Text is disabled in configuration");
+                player.sendMessage("§c[STT] Speech-to-Text가 비활성화되어 있습니다.");
+                return;
+            }
+            
+            if (speechRecognitionService == null) {
+                logger.severe("SpeechRecognitionService is null - STT will not work");
+                player.sendMessage("§c[STT] Speech Recognition 서비스를 사용할 수 없습니다.");
                 return;
             }
             
             logger.info("Processing audio for STT for player: " + player.getName() + 
                        ", audio size: " + audioData.length + " bytes");
             
+            // Validate audio data
+            if (audioData == null || audioData.length == 0) {
+                logger.warning("Empty or null audio data received from " + player.getName());
+                player.sendMessage("§c[STT] 오디오 데이터가 비어있습니다.");
+                return;
+            }
+            
+            player.sendMessage("§e[STT] 음성 인식을 시작합니다... (" + audioData.length + " bytes)");
+            
             // Perform speech recognition
             String recognizedText = speechRecognitionService.recognizeSpeech(audioData);
             
             if (recognizedText != null && !recognizedText.trim().isEmpty()) {
                 logger.info("Speech recognized from " + player.getName() + ": " + recognizedText);
+                player.sendMessage("§a[STT] 인식된 텍스트: " + recognizedText);
                 
                 // Send recognition result to AI conversation system
                 processRecognizedSpeech(player, recognizedText);
                 
-                // Send response through chat
-                player.sendMessage("§b[STT] Recognized: " + recognizedText);
-                
             } else {
-                logger.fine("No speech recognized from audio data");
+                logger.info("No speech recognized from audio data for player: " + player.getName());
+                player.sendMessage("§6[STT] 음성을 인식하지 못했습니다. 다시 시도해보세요.");
             }
             
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error processing audio for STT", e);
+            logger.log(Level.SEVERE, "Error processing audio for STT from player: " + player.getName(), e);
+            player.sendMessage("§c[STT] 오류 발생: " + e.getMessage());
             sendErrorResponse(player.getUniqueId(), "stt_error", "Speech recognition failed: " + e.getMessage());
         }
     }
