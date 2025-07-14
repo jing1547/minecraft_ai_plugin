@@ -55,9 +55,85 @@ public class AudioCaptureService implements Service {
     
     // STT service integration
     private SpeechRecognitionService speechRecognitionService;
-    private final Map<UUID, ByteArrayOutputStream> playerAudioBuffers = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> lastSTTProcessTime = new ConcurrentHashMap<>();
-    private static final long STT_PROCESS_INTERVAL = 2000; // Process STT every 2 seconds
+    
+    // ✅ VAD (Voice Activity Detection) 관련 상수들로 교체
+    private final Map<UUID, VoiceSession> playerVoiceSessions = new ConcurrentHashMap<>();
+    private static final double VOICE_START_THRESHOLD = 0.02; // 음성 시작 임계값
+    private static final double VOICE_END_THRESHOLD = 0.01;   // 음성 종료 임계값  
+    private static final long VOICE_END_DELAY = 800;          // 음성 종료 후 대기 시간 (ms)
+    private static final long MIN_VOICE_DURATION = 300;       // 최소 음성 길이 (ms)
+    private static final long MAX_VOICE_DURATION = 10000;     // 최대 음성 길이 (ms)
+    
+    /**
+     * 플레이어별 음성 세션 관리
+     */
+    private static class VoiceSession {
+        private ByteArrayOutputStream audioBuffer;
+        private long recordingStartTime;
+        private long lastVoiceActivityTime;
+        private boolean isRecording;
+        private double currentVolumeLevel;
+        
+        public VoiceSession() {
+            this.audioBuffer = new ByteArrayOutputStream();
+            this.recordingStartTime = 0;
+            this.lastVoiceActivityTime = 0;
+            this.isRecording = false;
+            this.currentVolumeLevel = 0.0;
+        }
+        
+        public void startRecording() {
+            audioBuffer.reset();
+            recordingStartTime = System.currentTimeMillis();
+            lastVoiceActivityTime = recordingStartTime;
+            isRecording = true;
+        }
+        
+        public void stopRecording() {
+            isRecording = false;
+        }
+        
+        public void addAudioData(byte[] data) {
+            if (isRecording) {
+                try {
+                    audioBuffer.write(data);
+                } catch (java.io.IOException e) {
+                    // Handle silently
+                }
+            }
+        }
+        
+        public byte[] getRecordedAudio() {
+            return audioBuffer.toByteArray();
+        }
+        
+        public long getRecordingDuration() {
+            return isRecording ? System.currentTimeMillis() - recordingStartTime : 0;
+        }
+        
+        public boolean shouldEndRecording(long currentTime) {
+            // 음성 활동이 일정 시간 없었거나, 최대 길이 초과시 종료
+            return (currentTime - lastVoiceActivityTime > VOICE_END_DELAY) || 
+                   (getRecordingDuration() > MAX_VOICE_DURATION);
+        }
+        
+        public boolean isMinimumDurationMet() {
+            return getRecordingDuration() >= MIN_VOICE_DURATION;
+        }
+        
+        public void updateVoiceActivity(double volumeLevel, long currentTime) {
+            this.currentVolumeLevel = volumeLevel;
+            if (volumeLevel > VOICE_END_THRESHOLD) {
+                this.lastVoiceActivityTime = currentTime;
+            }
+        }
+        
+        // Getters
+        public boolean isRecording() { return isRecording; }
+        public double getCurrentVolumeLevel() { return currentVolumeLevel; }
+        public long getLastVoiceActivityTime() { return lastVoiceActivityTime; }
+        public long getRecordingStartTime() { return recordingStartTime; }
+    }
     
     // Audio monitoring
     private final AtomicInteger currentVolumeLevel = new AtomicInteger(0); // 0-100
@@ -512,7 +588,8 @@ public class AudioCaptureService implements Service {
     }
     
     /**
-     * Process audio data for Speech-to-Text recognition
+     * ✅ 새로운 VAD 기반 오디오 처리
+     * Process audio data using Voice Activity Detection
      * @param audioData Audio data to process
      */
     private void processAudioForSTT(AudioData audioData) {
@@ -526,117 +603,174 @@ public class AudioCaptureService implements Service {
         if (player == null || !player.isOnline()) {
             return;
         }
-        
+
         try {
-            // 플레이어별 오디오 버퍼 관리
-            ByteArrayOutputStream audioBuffer = playerAudioBuffers.computeIfAbsent(playerId, k -> new ByteArrayOutputStream());
-            audioBuffer.write(audioData.getData());
-            
-            // 2초 간격으로 STT 처리
+            // 현재 오디오 프레임의 볼륨 계산
+            byte[] audioBytes = audioData.getData();
+            double currentVolume = calculateRMS(audioBytes);
             long currentTime = System.currentTimeMillis();
-            Long lastProcessTime = lastSTTProcessTime.get(playerId);
             
-            if (lastProcessTime == null || (currentTime - lastProcessTime) >= STT_PROCESS_INTERVAL) {
-                byte[] audioBytes = audioBuffer.toByteArray();
-                
-                // ✅ 개선: 오디오 품질 검증
-                AudioQualityResult qualityResult = validateAudioQuality(audioBytes);
-                
-                if (!qualityResult.isValid()) {
-                    // 품질 문제에 따른 구체적인 피드백 (메인 스레드에서 실행)
+            // 플레이어별 음성 세션 가져오기 또는 생성
+            VoiceSession session = playerVoiceSessions.computeIfAbsent(playerId, k -> new VoiceSession());
+            
+            // 음성 활동 업데이트
+            session.updateVoiceActivity(currentVolume, currentTime);
+            
+            // 상태별 처리
+            if (!session.isRecording()) {
+                // 🎤 녹음 중이 아님 - 음성 시작 감지
+                if (currentVolume > VOICE_START_THRESHOLD) {
+                    // 음성 시작 감지!
+                    session.startRecording();
+                    session.addAudioData(audioBytes);
+                    
+                    logger.info("Voice recording STARTED for player: " + player.getName() + 
+                               " (volume: " + String.format("%.3f", currentVolume) + ")");
+                    
+                    // 플레이어에게 녹음 시작 알림
                     org.bukkit.Bukkit.getScheduler().runTask(
                         org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                        () -> {
-                            switch (qualityResult.reason) {
-                                case TOO_SHORT:
-                                    // 너무 짧은 경우는 메시지 표시하지 않음 (자연스럽게)
-                                    break;
-                                case TOO_QUIET:
-                                    player.sendMessage("§6[STT] 마이크 볼륨이 너무 낮습니다. 더 크게 말씀해주세요.");
-                                    break;
-                                case NO_VOICE_ACTIVITY:
-                                    // 침묵인 경우는 메시지 표시하지 않음
-                                    break;
-                                case MOSTLY_NOISE:
-                                    player.sendMessage("§6[STT] 주변 소음이 많습니다. 조용한 곳에서 다시 시도해주세요.");
-                                    break;
-                            }
-                        }
+                        () -> player.sendMessage("§a[음성] 🎤 말씀해주세요...")
                     );
-                    
-                    // 버퍼 클리어하고 다음 사이클로
-                    audioBuffer.reset();
-                    lastSTTProcessTime.put(playerId, currentTime);
-                    return;
+                }
+                // 음성 없으면 아무것도 안함 (조용히 대기)
+                
+            } else {
+                // 📼 녹음 중 - 오디오 데이터 누적 및 종료 조건 확인
+                session.addAudioData(audioBytes);
+                
+                // 디버그용 주기적 상태 표시 (5초마다)
+                if (session.getRecordingDuration() % 5000 < 100) {
+                    logger.info("Recording in progress for " + player.getName() + 
+                               " - Duration: " + session.getRecordingDuration() + "ms, " +
+                               "Volume: " + String.format("%.3f", currentVolume));
                 }
                 
-                // ✅ 품질이 좋은 오디오만 STT 처리
-                // 메인 스레드에서 메시지 전송
-                org.bukkit.Bukkit.getScheduler().runTask(
-                    org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                    () -> player.sendMessage("§e[STT] 음성 인식 처리 중... (" + audioBytes.length + " bytes, 품질: " + qualityResult.qualityScore + "%)")
-                );
-                
-                logger.info("Processing " + audioBytes.length + " bytes of audio for STT for player: " + player.getName() + " (Quality: " + qualityResult.qualityScore + "%)");
-                
-                // 비동기로 STT 처리
-                audioProcessor.submit(() -> {
-                    try {
-                        logger.info("Starting Google Cloud Speech API call for player: " + player.getName());
-                        long startTime = System.currentTimeMillis();
-                        
-                        String recognizedText = speechRecognitionService.recognizeSpeech(audioBytes);
-                        
-                        long endTime = System.currentTimeMillis();
-                        logger.info("Google Cloud Speech API call completed for player: " + player.getName() + 
-                                   " (took " + (endTime - startTime) + "ms)");
-                        
-                        if (recognizedText != null && !recognizedText.trim().isEmpty()) {
-                            logger.info("STT Recognition Success for " + player.getName() + ": '" + recognizedText + "'");
-                            
-                            // 메인 스레드에서 메시지 전송
-                            org.bukkit.Bukkit.getScheduler().runTask(
-                                org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                                () -> {
-                                    player.sendMessage("§a[STT] 인식된 텍스트: " + recognizedText);
-                                    processRecognizedSpeech(player, recognizedText.trim());
-                                }
-                            );
-                        } else {
-                            logger.warning("STT Recognition returned empty/null result for player: " + player.getName());
-                            
-                            // 메인 스레드에서 메시지 전송
-                            org.bukkit.Bukkit.getScheduler().runTask(
-                                org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                                () -> {
-                                    // ✅ 개선: 더 구체적인 피드백
-                                    if (qualityResult.hasVoiceActivity) {
-                                        player.sendMessage("§6[STT] 음성이 감지되었지만 명확하게 인식되지 않았습니다. 더 또렷하게 말씀해주세요.");
-                                    } else {
-                                        player.sendMessage("§7[STT] 음성이 감지되지 않았습니다.");
-                                    }
-                                }
-                            );
-                        }
-                    } catch (Exception e) {
-                        logger.severe("STT processing error for player " + player.getName() + ": " + e.getMessage());
-                        e.printStackTrace(); // 스택 트레이스도 출력
-                        
-                        // 메인 스레드에서 에러 메시지 전송
+                // 녹음 종료 조건 확인
+                if (session.shouldEndRecording(currentTime)) {
+                    // 음성 종료 감지!
+                    byte[] recordedAudio = session.getRecordedAudio();
+                    long duration = session.getRecordingDuration(); // 수정됨
+                    
+                    session.stopRecording();
+                    
+                    logger.info("Voice recording ENDED for player: " + player.getName() + 
+                               " - Duration: " + duration + "ms, Size: " + recordedAudio.length + " bytes");
+                    
+                    // 최소 길이 체크
+                    if (session.isMinimumDurationMet() && recordedAudio.length > 0) {
+                        // 🎯 STT 처리
+                        processRecordedVoice(player, recordedAudio, duration);
+                    } else {
+                        // 너무 짧은 녹음
+                        logger.info("Recording too short, ignored: " + duration + "ms");
                         org.bukkit.Bukkit.getScheduler().runTask(
                             org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                            () -> player.sendMessage("§c[STT] 음성 인식 오류가 발생했습니다: " + e.getMessage())
+                            () -> player.sendMessage("§6[음성] 너무 짧게 말씀하셨습니다. 다시 시도해주세요.")
                         );
                     }
-                });
-                
-                // Clear buffer and update timestamp
-                audioBuffer.reset();
-                lastSTTProcessTime.put(playerId, currentTime);
+                }
             }
             
         } catch (Exception e) {
-            logger.severe("Error processing audio for STT: " + e.getMessage());
+            logger.severe("Error in VAD processing for player " + player.getName() + ": " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * ✅ 녹음된 음성을 STT로 처리
+     * Process recorded voice with Speech-to-Text
+     * @param player The player who spoke
+     * @param audioData The recorded audio data
+     * @param duration Recording duration in milliseconds
+     */
+    private void processRecordedVoice(Player player, byte[] audioData, long duration) {
+        try {
+            // 오디오 품질 검증
+            AudioQualityResult qualityResult = validateAudioQuality(audioData);
+            
+            if (!qualityResult.isValid()) {
+                // 품질 문제 피드백
+                org.bukkit.Bukkit.getScheduler().runTask(
+                    org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                    () -> {
+                        switch (qualityResult.reason) {
+                            case TOO_QUIET:
+                                player.sendMessage("§6[STT] 음성이 너무 작습니다. 더 크게 말씀해주세요.");
+                                break;
+                            case NO_VOICE_ACTIVITY:
+                                player.sendMessage("§6[STT] 명확한 음성이 감지되지 않았습니다.");
+                                break;
+                            case MOSTLY_NOISE:
+                                player.sendMessage("§6[STT] 주변 소음이 많습니다. 조용한 곳에서 다시 시도해주세요.");
+                                break;
+                            default:
+                                player.sendMessage("§6[STT] 음성 품질이 좋지 않습니다. 다시 시도해주세요.");
+                                break;
+                        }
+                    }
+                );
+                return;
+            }
+            
+            // STT 처리 시작 알림
+            org.bukkit.Bukkit.getScheduler().runTask(
+                org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                () -> player.sendMessage("§e[STT] 🔄 음성 인식 중... (" + 
+                    String.format("%.1f", duration/1000.0) + "초, " + audioData.length + " bytes, 품질: " + qualityResult.qualityScore + "%)")
+            );
+            
+            logger.info("Starting STT processing for " + player.getName() + 
+                       " - Duration: " + duration + "ms, Quality: " + qualityResult.qualityScore + "%");
+            
+            // 비동기 STT 처리
+            audioProcessor.submit(() -> {
+                try {
+                    logger.info("Starting Google Cloud Speech API call for player: " + player.getName());
+                    long startTime = System.currentTimeMillis();
+                    
+                    String recognizedText = speechRecognitionService.recognizeSpeech(audioData);
+                    
+                    long endTime = System.currentTimeMillis();
+                    logger.info("Google Cloud Speech API call completed for player: " + player.getName() + 
+                               " (took " + (endTime - startTime) + "ms)");
+                    
+                    if (recognizedText != null && !recognizedText.trim().isEmpty()) {
+                        logger.info("STT Recognition Success for " + player.getName() + ": '" + recognizedText + "'");
+                        
+                        // 성공 메시지
+                        org.bukkit.Bukkit.getScheduler().runTask(
+                            org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                            () -> {
+                                player.sendMessage("§a[STT] ✅ 인식 완료: " + recognizedText);
+                                processRecognizedSpeech(player, recognizedText.trim());
+                            }
+                        );
+                    } else {
+                        logger.warning("STT Recognition returned empty/null result for player: " + player.getName());
+                        
+                        // 인식 실패 메시지
+                        org.bukkit.Bukkit.getScheduler().runTask(
+                            org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                            () -> player.sendMessage("§6[STT] ❌ 음성을 명확하게 인식하지 못했습니다. 다시 시도해주세요.")
+                        );
+                    }
+                } catch (Exception e) {
+                    logger.severe("STT processing error for player " + player.getName() + ": " + e.getMessage());
+                    e.printStackTrace();
+                    
+                    // 에러 메시지
+                    org.bukkit.Bukkit.getScheduler().runTask(
+                        org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                        () -> player.sendMessage("§c[STT] ⚠️ 음성 인식 오류: " + e.getMessage())
+                    );
+                }
+            });
+            
+        } catch (Exception e) {
+            logger.severe("Error processing recorded voice: " + e.getMessage());
+            e.printStackTrace();
         }
     }
     
@@ -848,9 +982,8 @@ public class AudioCaptureService implements Service {
         UUID playerId = player.getUniqueId();
         monitoringPlayers.add(playerId);
         
-        // Initialize STT buffers for this player
-        playerAudioBuffers.put(playerId, new ByteArrayOutputStream());
-        lastSTTProcessTime.put(playerId, System.currentTimeMillis());
+        // Initialize VAD session for this player
+        playerVoiceSessions.put(playerId, new VoiceSession());
         
         // Reset statistics for new monitoring session
         totalAudioFrames.set(0);
@@ -898,9 +1031,8 @@ public class AudioCaptureService implements Service {
         UUID playerId = player.getUniqueId();
         monitoringPlayers.remove(playerId);
         
-        // Clean up STT buffers for this player
-        playerAudioBuffers.remove(playerId);
-        lastSTTProcessTime.remove(playerId);
+        // Clean up VAD session for this player
+        playerVoiceSessions.remove(playerId);
         
         // Stop real microphone capture
         stopMicrophoneCapture();
