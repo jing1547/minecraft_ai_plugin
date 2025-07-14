@@ -118,6 +118,10 @@ public class MessageSerializer {
                     return deserializeEventMessage(jsonObject);
                 case "state":
                     return deserializeStateMessage(jsonObject);
+                case "ping":
+                    return deserializePingMessage(jsonObject);
+                case "pong":
+                    return deserializePongMessage(jsonObject);
                 default:
                     throw new JsonParseException("Unknown message type: " + messageType);
             }
@@ -172,6 +176,21 @@ public class MessageSerializer {
             return new BaseMessage(BaseMessage.MessageType.STATE, 
                     jsonObject.get("payload")) {
                 // Anonymous implementation for now
+            };
+        }
+        
+        private BaseMessage deserializePingMessage(JsonObject jsonObject) {
+            // For ping messages, we just need the basic structure
+            return new BaseMessage(BaseMessage.MessageType.PING, null) {
+                // Anonymous implementation for ping
+            };
+        }
+        
+        private BaseMessage deserializePongMessage(JsonObject jsonObject) {
+            // For pong messages, we just need the basic structure  
+            return new BaseMessage(BaseMessage.MessageType.PONG, 
+                    jsonObject.has("payload") ? jsonObject.get("payload") : null) {
+                // Anonymous implementation for pong
             };
         }
     }
