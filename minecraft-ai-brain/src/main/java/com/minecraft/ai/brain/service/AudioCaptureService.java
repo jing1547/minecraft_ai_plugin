@@ -1,6 +1,7 @@
 package com.minecraft.ai.brain.service;
 
 import org.bukkit.entity.Player;
+import org.bukkit.Bukkit;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -51,6 +52,12 @@ public class AudioCaptureService implements Service {
     private final Map<UUID, AudioSession> activeSessions = new ConcurrentHashMap<>();
     private final BlockingQueue<AudioData> audioQueue = new LinkedBlockingQueue<>();
     private final ExecutorService audioProcessor = Executors.newFixedThreadPool(3);
+    
+    // STT service integration
+    private SpeechRecognitionService speechRecognitionService;
+    private final Map<UUID, ByteArrayOutputStream> playerAudioBuffers = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastSTTProcessTime = new ConcurrentHashMap<>();
+    private static final long STT_PROCESS_INTERVAL = 2000; // Process STT every 2 seconds
     
     // Audio monitoring
     private final AtomicInteger currentVolumeLevel = new AtomicInteger(0); // 0-100
@@ -178,8 +185,18 @@ public class AudioCaptureService implements Service {
         
         logger.info("Initializing Audio Capture Service...");
         
-        // Check if STT is enabled
-        if (!SpeechToTextConfig.isEnabled()) {
+        // Initialize STT service if enabled
+        if (SpeechToTextConfig.isEnabled()) {
+            try {
+                logger.info("Initializing SpeechRecognitionService...");
+                speechRecognitionService = new SpeechRecognitionService();
+                logger.info("SpeechRecognitionService initialized successfully");
+            } catch (Exception e) {
+                logger.severe("Failed to initialize SpeechRecognitionService: " + e.getMessage());
+                speechRecognitionService = null;
+                // Continue without STT
+            }
+        } else {
             logger.warning("Speech-to-Text is disabled - Audio Capture Service will have limited functionality");
         }
         
@@ -480,12 +497,8 @@ public class AudioCaptureService implements Service {
                     continue;
                 }
                 
-                // Process audio data further if needed
-                // This is where you would send to STT service
-                logger.fine("Processing audio data for player: " + session.getPlayerName() + 
-                           " (size: " + audioData.getData().length + " bytes)");
-                
-                // TODO: Integrate with SpeechToTextService when implemented
+                // Process audio data for STT
+                processAudioForSTT(audioData);
                 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -496,6 +509,110 @@ public class AudioCaptureService implements Service {
         }
         
         logger.info("Audio queue processor stopped");
+    }
+    
+    /**
+     * Process audio data for Speech-to-Text
+     * @param audioData Audio data to process
+     */
+    private void processAudioForSTT(AudioData audioData) {
+        if (speechRecognitionService == null || !SpeechToTextConfig.isEnabled()) {
+            return;
+        }
+        
+        UUID playerId = audioData.getPlayerId();
+        Player player = Bukkit.getPlayer(playerId);
+        
+        if (player == null) {
+            return;
+        }
+        
+        try {
+            // Get or create audio buffer for this player
+            ByteArrayOutputStream audioBuffer = playerAudioBuffers.computeIfAbsent(playerId, k -> new ByteArrayOutputStream());
+            
+            // Add new audio data to buffer
+            audioBuffer.write(audioData.getData());
+            
+            // Check if enough time has passed since last STT processing
+            long currentTime = System.currentTimeMillis();
+            long lastProcessTime = lastSTTProcessTime.getOrDefault(playerId, 0L);
+            
+            if (currentTime - lastProcessTime >= STT_PROCESS_INTERVAL && audioBuffer.size() > 0) {
+                // Process accumulated audio for STT
+                byte[] accumulatedAudio = audioBuffer.toByteArray();
+                
+                logger.info("Processing " + accumulatedAudio.length + " bytes of audio for STT for player: " + player.getName());
+                
+                // Send to player immediately
+                player.sendMessage("§e[STT] 음성 인식 처리 중... (" + accumulatedAudio.length + " bytes)");
+                
+                // Process STT asynchronously to avoid blocking audio queue
+                Bukkit.getScheduler().runTaskAsynchronously(
+                    Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                    () -> {
+                        try {
+                            String recognizedText = speechRecognitionService.recognizeSpeech(accumulatedAudio);
+                            
+                            // Send result back on main thread
+                            Bukkit.getScheduler().runTask(
+                                Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                                () -> {
+                                    if (recognizedText != null && !recognizedText.trim().isEmpty()) {
+                                        logger.info("STT Result for " + player.getName() + ": " + recognizedText);
+                                        player.sendMessage("§a[STT] 인식된 텍스트: " + recognizedText);
+                                        
+                                        // Process recognized speech further if needed
+                                        processRecognizedSpeech(player, recognizedText);
+                                    } else {
+                                        logger.info("No speech recognized for player: " + player.getName());
+                                        player.sendMessage("§6[STT] 음성을 인식하지 못했습니다. 다시 시도해보세요.");
+                                    }
+                                }
+                            );
+                        } catch (Exception e) {
+                            logger.severe("STT processing error for " + player.getName() + ": " + e.getMessage());
+                            Bukkit.getScheduler().runTask(
+                                Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                                () -> player.sendMessage("§c[STT] 음성 인식 오류: " + e.getMessage())
+                            );
+                        }
+                    }
+                );
+                
+                // Clear buffer and update timestamp
+                audioBuffer.reset();
+                lastSTTProcessTime.put(playerId, currentTime);
+            }
+            
+        } catch (Exception e) {
+            logger.severe("Error processing audio for STT: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Process recognized speech text
+     * @param player Player who spoke
+     * @param recognizedText Recognized speech text
+     */
+    private void processRecognizedSpeech(Player player, String recognizedText) {
+        try {
+            logger.info("Processing recognized speech from " + player.getName() + ": " + recognizedText);
+            
+            // Check if this is a command (starts with !)
+            if (recognizedText.startsWith("!")) {
+                player.sendMessage("§b[Voice Command] " + recognizedText);
+                // TODO: Process voice commands
+                return;
+            }
+            
+            // Send to AI conversation system
+            player.sendMessage("§b[AI Conversation] " + recognizedText);
+            // TODO: Send to AI conversation system
+            
+        } catch (Exception e) {
+            logger.severe("Error processing recognized speech: " + e.getMessage());
+        }
     }
     
     /**
@@ -534,6 +651,10 @@ public class AudioCaptureService implements Service {
         // Add player to monitoring set
         UUID playerId = player.getUniqueId();
         monitoringPlayers.add(playerId);
+        
+        // Initialize STT buffers for this player
+        playerAudioBuffers.put(playerId, new ByteArrayOutputStream());
+        lastSTTProcessTime.put(playerId, System.currentTimeMillis());
         
         // Reset statistics for new monitoring session
         totalAudioFrames.set(0);
@@ -580,6 +701,10 @@ public class AudioCaptureService implements Service {
         // Remove player from monitoring set
         UUID playerId = player.getUniqueId();
         monitoringPlayers.remove(playerId);
+        
+        // Clean up STT buffers for this player
+        playerAudioBuffers.remove(playerId);
+        lastSTTProcessTime.remove(playerId);
         
         // Stop real microphone capture
         stopMicrophoneCapture();
