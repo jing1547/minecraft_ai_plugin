@@ -512,7 +512,7 @@ public class AudioCaptureService implements Service {
     }
     
     /**
-     * Process audio data for Speech-to-Text
+     * Process audio data for Speech-to-Text recognition
      * @param audioData Audio data to process
      */
     private void processAudioForSTT(AudioData audioData) {
@@ -521,64 +521,75 @@ public class AudioCaptureService implements Service {
         }
         
         UUID playerId = audioData.getPlayerId();
-        Player player = Bukkit.getPlayer(playerId);
+        Player player = org.bukkit.Bukkit.getPlayer(playerId);
         
-        if (player == null) {
+        if (player == null || !player.isOnline()) {
             return;
         }
         
         try {
-            // Get or create audio buffer for this player
+            // 플레이어별 오디오 버퍼 관리
             ByteArrayOutputStream audioBuffer = playerAudioBuffers.computeIfAbsent(playerId, k -> new ByteArrayOutputStream());
-            
-            // Add new audio data to buffer
             audioBuffer.write(audioData.getData());
             
-            // Check if enough time has passed since last STT processing
+            // 2초 간격으로 STT 처리
             long currentTime = System.currentTimeMillis();
-            long lastProcessTime = lastSTTProcessTime.getOrDefault(playerId, 0L);
+            Long lastProcessTime = lastSTTProcessTime.get(playerId);
             
-            if (currentTime - lastProcessTime >= STT_PROCESS_INTERVAL && audioBuffer.size() > 0) {
-                // Process accumulated audio for STT
-                byte[] accumulatedAudio = audioBuffer.toByteArray();
+            if (lastProcessTime == null || (currentTime - lastProcessTime) >= STT_PROCESS_INTERVAL) {
+                byte[] audioBytes = audioBuffer.toByteArray();
                 
-                logger.info("Processing " + accumulatedAudio.length + " bytes of audio for STT for player: " + player.getName());
+                // ✅ 개선: 오디오 품질 검증
+                AudioQualityResult qualityResult = validateAudioQuality(audioBytes);
                 
-                // Send to player immediately
-                player.sendMessage("§e[STT] 음성 인식 처리 중... (" + accumulatedAudio.length + " bytes)");
-                
-                // Process STT asynchronously to avoid blocking audio queue
-                Bukkit.getScheduler().runTaskAsynchronously(
-                    Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                    () -> {
-                        try {
-                            String recognizedText = speechRecognitionService.recognizeSpeech(accumulatedAudio);
-                            
-                            // Send result back on main thread
-                            Bukkit.getScheduler().runTask(
-                                Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                                () -> {
-                                    if (recognizedText != null && !recognizedText.trim().isEmpty()) {
-                                        logger.info("STT Result for " + player.getName() + ": " + recognizedText);
-                                        player.sendMessage("§a[STT] 인식된 텍스트: " + recognizedText);
-                                        
-                                        // Process recognized speech further if needed
-                                        processRecognizedSpeech(player, recognizedText);
-                                    } else {
-                                        logger.info("No speech recognized for player: " + player.getName());
-                                        player.sendMessage("§6[STT] 음성을 인식하지 못했습니다. 다시 시도해보세요.");
-                                    }
-                                }
-                            );
-                        } catch (Exception e) {
-                            logger.severe("STT processing error for " + player.getName() + ": " + e.getMessage());
-                            Bukkit.getScheduler().runTask(
-                                Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                                () -> player.sendMessage("§c[STT] 음성 인식 오류: " + e.getMessage())
-                            );
-                        }
+                if (!qualityResult.isValid()) {
+                    // 품질 문제에 따른 구체적인 피드백
+                    switch (qualityResult.reason) {
+                        case TOO_SHORT:
+                            // 너무 짧은 경우는 메시지 표시하지 않음 (자연스럽게)
+                            break;
+                        case TOO_QUIET:
+                            player.sendMessage("§6[STT] 마이크 볼륨이 너무 낮습니다. 더 크게 말씀해주세요.");
+                            break;
+                        case NO_VOICE_ACTIVITY:
+                            // 침묵인 경우는 메시지 표시하지 않음
+                            break;
+                        case MOSTLY_NOISE:
+                            player.sendMessage("§6[STT] 주변 소음이 많습니다. 조용한 곳에서 다시 시도해주세요.");
+                            break;
                     }
-                );
+                    
+                    // 버퍼 클리어하고 다음 사이클로
+                    audioBuffer.reset();
+                    lastSTTProcessTime.put(playerId, currentTime);
+                    return;
+                }
+                
+                // ✅ 품질이 좋은 오디오만 STT 처리
+                player.sendMessage("§e[STT] 음성 인식 처리 중... (" + audioBytes.length + " bytes, 품질: " + qualityResult.qualityScore + "%)");
+                logger.info("Processing " + audioBytes.length + " bytes of audio for STT for player: " + player.getName() + " (Quality: " + qualityResult.qualityScore + "%)");
+                
+                // 비동기로 STT 처리
+                audioProcessor.submit(() -> {
+                    try {
+                        String recognizedText = speechRecognitionService.recognizeSpeech(audioBytes);
+                        
+                        if (recognizedText != null && !recognizedText.trim().isEmpty()) {
+                            player.sendMessage("§a[STT] 인식된 텍스트: " + recognizedText);
+                            processRecognizedSpeech(player, recognizedText.trim());
+                        } else {
+                            // ✅ 개선: 더 구체적인 피드백
+                            if (qualityResult.hasVoiceActivity) {
+                                player.sendMessage("§6[STT] 음성이 감지되었지만 명확하게 인식되지 않았습니다. 더 또렷하게 말씀해주세요.");
+                            } else {
+                                player.sendMessage("§7[STT] 음성이 감지되지 않았습니다.");
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.severe("STT processing error for player " + player.getName() + ": " + e.getMessage());
+                        player.sendMessage("§c[STT] 음성 인식 오류가 발생했습니다: " + e.getMessage());
+                    }
+                });
                 
                 // Clear buffer and update timestamp
                 audioBuffer.reset();
@@ -588,6 +599,125 @@ public class AudioCaptureService implements Service {
         } catch (Exception e) {
             logger.severe("Error processing audio for STT: " + e.getMessage());
         }
+    }
+    
+    /**
+     * 오디오 품질 검증 결과
+     */
+    private static class AudioQualityResult {
+        final boolean valid;
+        final QualityIssue reason;
+        final int qualityScore; // 0-100
+        final boolean hasVoiceActivity;
+        
+        AudioQualityResult(boolean valid, QualityIssue reason, int qualityScore, boolean hasVoiceActivity) {
+            this.valid = valid;
+            this.reason = reason;
+            this.qualityScore = qualityScore;
+            this.hasVoiceActivity = hasVoiceActivity;
+        }
+        
+        boolean isValid() { return valid; }
+    }
+    
+    /**
+     * 오디오 품질 문제 유형
+     */
+    private enum QualityIssue {
+        TOO_SHORT, TOO_QUIET, NO_VOICE_ACTIVITY, MOSTLY_NOISE, NONE
+    }
+    
+    /**
+     * ✅ 새로운 기능: 오디오 품질 검증
+     * @param audioBytes 검증할 오디오 데이터
+     * @return 품질 검증 결과
+     */
+    private AudioQualityResult validateAudioQuality(byte[] audioBytes) {
+        // 최소 길이 체크 (최소 0.5초)
+        int minBytes = (AUDIO_SAMPLE_RATE * AUDIO_BITS_PER_SAMPLE / 8) / 2;
+        if (audioBytes.length < minBytes) {
+            return new AudioQualityResult(false, QualityIssue.TOO_SHORT, 0, false);
+        }
+        
+        // RMS 볼륨 계산
+        double rms = calculateRMS(audioBytes);
+        double volume = Math.min(100.0, rms * 1000); // 0-100 스케일
+        
+        // 너무 조용한지 체크
+        if (volume < 5.0) {
+            return new AudioQualityResult(false, QualityIssue.TOO_QUIET, (int)volume, false);
+        }
+        
+        // 음성 활동 감지
+        boolean hasVoiceActivity = detectVoiceActivity(audioBytes, rms);
+        
+        if (!hasVoiceActivity) {
+            return new AudioQualityResult(false, QualityIssue.NO_VOICE_ACTIVITY, (int)volume, false);
+        }
+        
+        // 노이즈 대비 신호 비율 추정
+        double signalToNoiseRatio = estimateSignalToNoise(audioBytes);
+        
+        if (signalToNoiseRatio < 0.3) { // 30% 미만이면 노이즈가 너무 많음
+            return new AudioQualityResult(false, QualityIssue.MOSTLY_NOISE, (int)volume, hasVoiceActivity);
+        }
+        
+        // 품질 점수 계산 (볼륨, 음성 활동, 신호대잡음비 종합)
+        int qualityScore = (int)Math.min(100, (volume * 0.3 + signalToNoiseRatio * 70));
+        
+        return new AudioQualityResult(true, QualityIssue.NONE, qualityScore, hasVoiceActivity);
+    }
+    
+    /**
+     * ✅ 새로운 기능: 음성 활동 감지
+     * @param audioData 오디오 데이터
+     * @param avgRms 평균 RMS 값
+     * @return 음성 활동이 감지되었는지 여부
+     */
+    private boolean detectVoiceActivity(byte[] audioData, double avgRms) {
+        int frameSize = 1024; // 약 64ms at 16kHz
+        int voiceFrames = 0;
+        int totalFrames = 0;
+        
+        for (int i = 0; i < audioData.length - frameSize; i += frameSize) {
+            byte[] frame = java.util.Arrays.copyOfRange(audioData, i, i + frameSize);
+            double frameRms = calculateRMS(frame);
+            
+            // 프레임이 충분히 크고, 변화가 있으면 음성으로 간주
+            if (frameRms > avgRms * 0.5 && frameRms > 0.01) {
+                voiceFrames++;
+            }
+            totalFrames++;
+        }
+        
+        // 전체 프레임의 20% 이상에서 음성 활동이 있으면 유효한 음성으로 판단
+        return totalFrames > 0 && (double)voiceFrames / totalFrames >= 0.2;
+    }
+    
+    /**
+     * ✅ 새로운 기능: 신호 대 잡음 비율 추정
+     * @param audioData 오디오 데이터
+     * @return 신호 대 잡음 비율 (0.0 ~ 1.0)
+     */
+    private double estimateSignalToNoise(byte[] audioData) {
+        int frameSize = 512;
+        double maxFrameRms = 0;
+        double minFrameRms = Double.MAX_VALUE;
+        
+        for (int i = 0; i < audioData.length - frameSize; i += frameSize) {
+            byte[] frame = java.util.Arrays.copyOfRange(audioData, i, i + frameSize);
+            double frameRms = calculateRMS(frame);
+            
+            maxFrameRms = Math.max(maxFrameRms, frameRms);
+            minFrameRms = Math.min(minFrameRms, frameRms);
+        }
+        
+        // 최대값과 최소값의 비율로 신호 품질 추정
+        if (minFrameRms == 0 || maxFrameRms == 0) {
+            return 0.0;
+        }
+        
+        return Math.min(1.0, (maxFrameRms - minFrameRms) / maxFrameRms);
     }
     
     /**
