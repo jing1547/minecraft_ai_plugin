@@ -494,9 +494,22 @@ public class AudioMessageHandler {
      * Check if audio session should be processed for speech recognition
      */
     private boolean shouldProcessForSpeech(AudioSession session) {
-        // Process when buffer reaches certain size or after certain time
-        return session.getBufferSize() >= getConfiguredBufferThreshold() || 
-               (System.currentTimeMillis() - session.getLastProcessTime()) >= getConfiguredProcessInterval();
+        // Process more aggressively for better responsiveness
+        int bufferSize = session.getBufferSize();
+        long timeSinceLastProcess = System.currentTimeMillis() - session.getLastProcessTime();
+        
+        // Process if we have any chunks and enough time has passed (reduced to 1 second)
+        boolean timeThreshold = timeSinceLastProcess >= 1000; // 1 second instead of 3
+        
+        // Process if we have at least 2 chunks (reduced from 5)
+        boolean bufferThreshold = bufferSize >= 2;
+        
+        // Log the decision for debugging
+        if (timeThreshold || bufferThreshold) {
+            logger.info("Processing audio: buffer=" + bufferSize + ", time=" + timeSinceLastProcess + "ms");
+        }
+        
+        return timeThreshold || bufferThreshold;
     }
     
     /**

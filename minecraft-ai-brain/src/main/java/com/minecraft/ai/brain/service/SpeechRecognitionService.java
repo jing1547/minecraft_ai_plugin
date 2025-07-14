@@ -68,8 +68,11 @@ public class SpeechRecognitionService {
      */
     public String recognizeSpeech(byte[] audioData) {
         if (audioData == null || audioData.length == 0) {
+            logger.warning("Received null or empty audio data for speech recognition");
             return "";
         }
+        
+        logger.info("Starting speech recognition for audio data: " + audioData.length + " bytes");
         
         // Check cache first
         try {
@@ -149,8 +152,18 @@ public class SpeechRecognitionService {
             
             return finalText;
             
+        } catch (com.google.api.gax.rpc.ApiException e) {
+            logger.log(Level.SEVERE, "Google Cloud API error during speech recognition - Code: " + 
+                      e.getStatusCode() + ", Message: " + e.getMessage(), e);
+            errorHandler.handleError("speech-recognition", e);
+            return "";
+        } catch (java.lang.IllegalArgumentException e) {
+            logger.log(Level.SEVERE, "Invalid audio data format: " + e.getMessage(), e);
+            errorHandler.handleError("speech-recognition", e);
+            return "";
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Speech recognition failed", e);
+            logger.log(Level.SEVERE, "Unexpected error during speech recognition: " + e.getClass().getSimpleName() + 
+                      " - " + e.getMessage(), e);
             errorHandler.handleError("speech-recognition", e);
             return "";
         }

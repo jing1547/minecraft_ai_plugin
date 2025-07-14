@@ -33,6 +33,11 @@ commands:
     description: Debug AI system
     usage: /ai-debug [status|logs|reset]
     permission: minecraft.ai.debug
+  
+  cloudtest:
+    description: Test Google Cloud API connections
+    usage: /cloudtest [auth|stt|tts|config|all]
+    permission: minecraft.ai.debug
 
 # Permissions
 permissions:
