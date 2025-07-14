@@ -47,9 +47,9 @@ ai:
 
 # Speech-to-Text Configuration (Google Cloud)
 speech:
-  enabled: false
+  enabled: true
   credentials:
-    path: ""                       # Path to Google Cloud service account JSON file
+    path: "minecraftsever-463307-4aca77796027.json"  # Path to Google Cloud service account JSON file
   language:
     code: "ko-KR"                  # Language code for speech recognition
   sample:

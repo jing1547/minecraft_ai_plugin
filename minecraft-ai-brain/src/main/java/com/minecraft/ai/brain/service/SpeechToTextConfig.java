@@ -5,6 +5,8 @@ import com.google.cloud.speech.v1.SpeechClient;
 import com.google.cloud.speech.v1.SpeechSettings;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.minecraft.ai.brain.utils.ConfigManager;
+import org.bukkit.Bukkit;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -20,6 +22,7 @@ public class SpeechToTextConfig {
     private static final AtomicBoolean initialized = new AtomicBoolean(false);
     private static final Object lock = new Object();
     private static final Logger logger = Logger.getLogger(SpeechToTextConfig.class.getName());
+    private static ConfigManager configManager;
     
     // Configuration keys
     private static final String CONFIG_KEY_CREDENTIALS_PATH = "speech.credentials.path";
@@ -30,6 +33,14 @@ public class SpeechToTextConfig {
     // Default values
     private static final String DEFAULT_LANGUAGE_CODE = "ko-KR";
     private static final int DEFAULT_SAMPLE_RATE = 16000;
+    
+    /**
+     * Initialize with ConfigManager instance
+     * @param configManager the configuration manager
+     */
+    public static void setConfigManager(ConfigManager configManager) {
+        SpeechToTextConfig.configManager = configManager;
+    }
     
     /**
      * Get or create the Speech client instance
@@ -90,7 +101,14 @@ public class SpeechToTextConfig {
      * @return true if enabled, false otherwise
      */
     public static boolean isEnabled() {
-        // TODO: Implement proper configuration access - for now return false
+        if (configManager != null) {
+            return (Boolean) configManager.getValue(CONFIG_KEY_ENABLED, false);
+        }
+        // Fallback to direct config access if configManager is not set
+        JavaPlugin plugin = (JavaPlugin) Bukkit.getPluginManager().getPlugin("MinecraftAIBrain");
+        if (plugin != null) {
+            return plugin.getConfig().getBoolean(CONFIG_KEY_ENABLED, false);
+        }
         return false;
     }
     
@@ -99,9 +117,33 @@ public class SpeechToTextConfig {
      * @return credentials file path or null if not configured
      */
     public static String getCredentialsPath() {
-        // TODO: Implement proper configuration access
-        // For now check only environment variable
-        return System.getenv("GOOGLE_APPLICATION_CREDENTIALS");
+        String path = null;
+        
+        // First try to get from configuration
+        if (configManager != null) {
+            path = (String) configManager.getValue(CONFIG_KEY_CREDENTIALS_PATH, "");
+        } else {
+            // Fallback to direct config access
+            JavaPlugin plugin = (JavaPlugin) Bukkit.getPluginManager().getPlugin("MinecraftAIBrain");
+            if (plugin != null) {
+                path = plugin.getConfig().getString(CONFIG_KEY_CREDENTIALS_PATH, "");
+            }
+        }
+        
+        // If config path is empty, try environment variable
+        if (path == null || path.trim().isEmpty()) {
+            path = System.getenv("GOOGLE_APPLICATION_CREDENTIALS");
+        }
+        
+        // If path is relative, make it relative to plugin data folder
+        if (path != null && !path.trim().isEmpty() && !java.nio.file.Paths.get(path).isAbsolute()) {
+            JavaPlugin plugin = (JavaPlugin) Bukkit.getPluginManager().getPlugin("MinecraftAIBrain");
+            if (plugin != null) {
+                path = plugin.getDataFolder().getAbsolutePath() + "/" + path;
+            }
+        }
+        
+        return path;
     }
     
     /**
@@ -109,7 +151,14 @@ public class SpeechToTextConfig {
      * @return language code (default: ko-KR)
      */
     public static String getLanguageCode() {
-        // TODO: Implement proper configuration access
+        if (configManager != null) {
+            return (String) configManager.getValue(CONFIG_KEY_LANGUAGE_CODE, DEFAULT_LANGUAGE_CODE);
+        }
+        // Fallback to direct config access
+        JavaPlugin plugin = (JavaPlugin) Bukkit.getPluginManager().getPlugin("MinecraftAIBrain");
+        if (plugin != null) {
+            return plugin.getConfig().getString(CONFIG_KEY_LANGUAGE_CODE, DEFAULT_LANGUAGE_CODE);
+        }
         return DEFAULT_LANGUAGE_CODE;
     }
     
@@ -118,7 +167,14 @@ public class SpeechToTextConfig {
      * @return sample rate in Hz (default: 16000)
      */
     public static int getSampleRate() {
-        // TODO: Implement proper configuration access
+        if (configManager != null) {
+            return (Integer) configManager.getValue(CONFIG_KEY_SAMPLE_RATE, DEFAULT_SAMPLE_RATE);
+        }
+        // Fallback to direct config access
+        JavaPlugin plugin = (JavaPlugin) Bukkit.getPluginManager().getPlugin("MinecraftAIBrain");
+        if (plugin != null) {
+            return plugin.getConfig().getInt(CONFIG_KEY_SAMPLE_RATE, DEFAULT_SAMPLE_RATE);
+        }
         return DEFAULT_SAMPLE_RATE;
     }
     
