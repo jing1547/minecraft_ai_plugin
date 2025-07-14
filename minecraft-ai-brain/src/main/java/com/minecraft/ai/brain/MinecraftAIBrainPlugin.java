@@ -14,6 +14,8 @@ import com.minecraft.ai.brain.service.ServiceException;
 import com.minecraft.ai.brain.service.TextToSpeechService;
 import com.minecraft.ai.brain.service.AudioPlayerService;
 import com.minecraft.ai.brain.service.AudioCaptureService;
+import com.minecraft.ai.brain.service.TTSConfig;
+import com.minecraft.ai.brain.service.SpeechToTextConfig;
 
 import java.util.logging.Level;
 
@@ -122,6 +124,10 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
      */
     private void initializeServices() throws ServiceException {
         this.serviceManager = new ServiceManager(this);
+        
+        // Initialize TTS and STT configurations before service registration
+        TTSConfig.initialize(this, configManager);
+        SpeechToTextConfig.setConfigManager(configManager);
         
         // Register all services
         serviceManager.registerService(new TextToSpeechService(this));

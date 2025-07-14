@@ -17,6 +17,7 @@ import org.bukkit.entity.Player;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.logging.Level;
+import com.minecraft.ai.brain.service.Service;
 
 /**
  * Main command handler for AI Brain plugin commands
@@ -155,6 +156,12 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return testVoiceProcessing(sender);
             case "status":
                 return getVoiceStatus(sender);
+            case "mictest":
+                return startMicrophoneTest(sender);
+            case "mictest-stop":
+                return stopMicrophoneTest(sender);
+            case "micstatus":
+                return getMicrophoneStatus(sender);
             default:
                 return CommandManager.CommandResult.warning("Unknown voice action: " + action);
         }
@@ -187,10 +194,14 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     private CommandManager.CommandResult showVoiceHelp() {
         StringBuilder help = new StringBuilder();
         help.append(ChatColor.AQUA).append("=== AI Voice Commands ===\n");
-        help.append(ChatColor.YELLOW).append("/ai-voice start").append(ChatColor.WHITE).append(" - Start voice processing\n");
-        help.append(ChatColor.YELLOW).append("/ai-voice stop").append(ChatColor.WHITE).append(" - Stop voice processing\n");
-        help.append(ChatColor.YELLOW).append("/ai-voice test").append(ChatColor.WHITE).append(" - Test voice system\n");
-        help.append(ChatColor.YELLOW).append("/ai-voice status").append(ChatColor.WHITE).append(" - Show voice system status");
+        help.append(ChatColor.YELLOW).append("/ai voice start").append(ChatColor.WHITE).append(" - Start voice processing\n");
+        help.append(ChatColor.YELLOW).append("/ai voice stop").append(ChatColor.WHITE).append(" - Stop voice processing\n");
+        help.append(ChatColor.YELLOW).append("/ai voice test").append(ChatColor.WHITE).append(" - Test voice system\n");
+        help.append(ChatColor.YELLOW).append("/ai voice status").append(ChatColor.WHITE).append(" - Show voice system status\n");
+        help.append(ChatColor.GREEN).append("=== Microphone Test Commands ===\n");
+        help.append(ChatColor.YELLOW).append("/ai voice mictest").append(ChatColor.WHITE).append(" - Start microphone input test\n");
+        help.append(ChatColor.YELLOW).append("/ai voice mictest-stop").append(ChatColor.WHITE).append(" - Stop microphone input test\n");
+        help.append(ChatColor.YELLOW).append("/ai voice micstatus").append(ChatColor.WHITE).append(" - Show detailed microphone status");
         
         return CommandManager.CommandResult.info(help.toString());
     }
@@ -410,7 +421,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             
             Player player = (Player) sender;
             
-            player.sendMessage("§a[Voice AI] Running voice system test...");
+            player.sendMessage("§a[Voice AI] Running comprehensive voice system test...");
             
             // Test Speech-to-Text configuration
             boolean sttEnabled = SpeechToTextConfig.isEnabled();
@@ -442,6 +453,36 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 } catch (Exception e) {
                     player.sendMessage("§c[Voice AI] STT Configuration Error: " + e.getMessage());
                 }
+            }
+            
+            // Test AudioCaptureService
+            ServiceManager serviceManager = plugin.getServiceManager();
+            if (serviceManager != null) {
+                AudioCaptureService audioCaptureService = (AudioCaptureService) serviceManager.getService("audio_capture");
+                if (audioCaptureService != null) {
+                    player.sendMessage("§7[Voice AI] AudioCaptureService: §a✓ Available");
+                    player.sendMessage("§7[Voice AI] AudioCapture State: §b" + audioCaptureService.getState());
+                    player.sendMessage("§7[Voice AI] AudioCapture Health: §b" + audioCaptureService.getHealth().getStatus());
+                    
+                    // Start microphone capture test
+                    player.sendMessage("§e[Voice AI] Starting microphone capture test...");
+                    boolean sessionStarted = audioCaptureService.startCaptureSession(player);
+                    if (sessionStarted) {
+                        player.sendMessage("§a[Voice AI] ✓ Microphone capture session started successfully!");
+                        player.sendMessage("§6[Voice AI] Try speaking into your microphone now...");
+                        player.sendMessage("§6[Voice AI] Use '/ai voice mictest-stop' to end the test");
+                        
+                        // Show audio format info
+                        String formatInfo = audioCaptureService.getAudioFormatInfo();
+                        player.sendMessage("§7[Voice AI] Audio Format: §b" + formatInfo);
+                    } else {
+                        player.sendMessage("§c[Voice AI] ✗ Failed to start microphone capture session");
+                    }
+                } else {
+                    player.sendMessage("§7[Voice AI] AudioCaptureService: §c✗ Not Available");
+                }
+            } else {
+                player.sendMessage("§7[Voice AI] ServiceManager: §c✗ Not Available");
             }
             
             // Test basic system components
@@ -519,13 +560,164 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         long days = hours / 24;
         
         if (days > 0) {
-            return String.format("%dd %dh %dm", days, hours % 24, minutes % 60);
+            return String.format("%dd %dh %dm %ds", days, hours % 24, minutes % 60, seconds % 60);
         } else if (hours > 0) {
             return String.format("%dh %dm %ds", hours, minutes % 60, seconds % 60);
         } else if (minutes > 0) {
             return String.format("%dm %ds", minutes, seconds % 60);
         } else {
             return String.format("%ds", seconds);
+        }
+    }
+    
+    /**
+     * Start microphone test for the player
+     * @param sender Command sender
+     * @return Command result
+     */
+    private CommandManager.CommandResult startMicrophoneTest(CommandSender sender) {
+        try {
+            if (!(sender instanceof Player)) {
+                return CommandManager.CommandResult.error("This command can only be used by players.");
+            }
+            
+            Player player = (Player) sender;
+            ServiceManager serviceManager = plugin.getServiceManager();
+            
+            if (serviceManager == null) {
+                return CommandManager.CommandResult.error("ServiceManager not available.");
+            }
+            
+            AudioCaptureService audioCaptureService = (AudioCaptureService) serviceManager.getService("audio_capture");
+            if (audioCaptureService == null) {
+                return CommandManager.CommandResult.error("AudioCaptureService not available.");
+            }
+            
+            // Check if service is running
+            if (audioCaptureService.getState() != Service.State.RUNNING) {
+                return CommandManager.CommandResult.error("AudioCaptureService is not running. Current state: " + audioCaptureService.getState());
+            }
+            
+            // Start capture session
+            boolean sessionStarted = audioCaptureService.startCaptureSession(player);
+            if (sessionStarted) {
+                player.sendMessage("§a[Voice AI] ✓ Microphone test started!");
+                player.sendMessage("§6[Voice AI] Speak into your microphone...");
+                player.sendMessage("§7[Voice AI] Audio Format: " + audioCaptureService.getAudioFormatInfo());
+                player.sendMessage("§6[Voice AI] Use '/ai voice mictest-stop' to end the test");
+                return CommandManager.CommandResult.success("Microphone test session started successfully.");
+            } else {
+                return CommandManager.CommandResult.error("Failed to start microphone capture session.");
+            }
+            
+        } catch (Exception e) {
+            logger.severe("Error starting microphone test: " + e.getMessage());
+            return CommandManager.CommandResult.error("Error starting microphone test: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Stop microphone test for the player
+     * @param sender Command sender
+     * @return Command result
+     */
+    private CommandManager.CommandResult stopMicrophoneTest(CommandSender sender) {
+        try {
+            if (!(sender instanceof Player)) {
+                return CommandManager.CommandResult.error("This command can only be used by players.");
+            }
+            
+            Player player = (Player) sender;
+            ServiceManager serviceManager = plugin.getServiceManager();
+            
+            if (serviceManager == null) {
+                return CommandManager.CommandResult.error("ServiceManager not available.");
+            }
+            
+            AudioCaptureService audioCaptureService = (AudioCaptureService) serviceManager.getService("audio_capture");
+            if (audioCaptureService == null) {
+                return CommandManager.CommandResult.error("AudioCaptureService not available.");
+            }
+            
+            // Stop capture session
+            boolean sessionStopped = audioCaptureService.stopCaptureSession(player);
+            if (sessionStopped) {
+                player.sendMessage("§a[Voice AI] ✓ Microphone test stopped!");
+                player.sendMessage("§7[Voice AI] Microphone capture session ended.");
+                return CommandManager.CommandResult.success("Microphone test session stopped successfully.");
+            } else {
+                return CommandManager.CommandResult.warning("No active microphone session found for player.");
+            }
+            
+        } catch (Exception e) {
+            logger.severe("Error stopping microphone test: " + e.getMessage());
+            return CommandManager.CommandResult.error("Error stopping microphone test: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Get microphone status for the player
+     * @param sender Command sender
+     * @return Command result
+     */
+    private CommandManager.CommandResult getMicrophoneStatus(CommandSender sender) {
+        try {
+            if (!(sender instanceof Player)) {
+                return CommandManager.CommandResult.error("This command can only be used by players.");
+            }
+            
+            Player player = (Player) sender;
+            ServiceManager serviceManager = plugin.getServiceManager();
+            
+            player.sendMessage("§a[Voice AI] ===== Microphone Status =====");
+            
+            if (serviceManager == null) {
+                player.sendMessage("§c[Voice AI] ServiceManager: Not Available");
+                return CommandManager.CommandResult.warning("ServiceManager not available.");
+            }
+            
+            AudioCaptureService audioCaptureService = (AudioCaptureService) serviceManager.getService("audio_capture");
+            if (audioCaptureService == null) {
+                player.sendMessage("§c[Voice AI] AudioCaptureService: Not Available");
+                return CommandManager.CommandResult.warning("AudioCaptureService not available.");
+            }
+            
+            // Service status
+            player.sendMessage("§7[Voice AI] Service State: §b" + audioCaptureService.getState());
+            player.sendMessage("§7[Voice AI] Service Health: §b" + audioCaptureService.getHealth().getStatus());
+            player.sendMessage("§7[Voice AI] Service Enabled: §b" + audioCaptureService.isEnabled());
+            
+            if (audioCaptureService.getStartTime() > 0) {
+                long uptime = audioCaptureService.getUptime();
+                player.sendMessage("§7[Voice AI] Service Uptime: §b" + formatUptime(uptime));
+            }
+            
+            // Active sessions info
+            Map<UUID, String> activeSessions = audioCaptureService.getActiveSessions();
+            player.sendMessage("§7[Voice AI] Total Active Sessions: §b" + activeSessions.size());
+            
+            boolean playerHasSession = activeSessions.containsKey(player.getUniqueId());
+            player.sendMessage("§7[Voice AI] Your Session Status: " + (playerHasSession ? "§aActive" : "§cInactive"));
+            
+            // Audio format info
+            player.sendMessage("§7[Voice AI] Audio Format: §b" + audioCaptureService.getAudioFormatInfo());
+            
+            // Service metrics
+            Map<String, Object> metrics = audioCaptureService.getMetrics();
+            if (metrics != null && !metrics.isEmpty()) {
+                player.sendMessage("§7[Voice AI] Service Metrics:");
+                for (Map.Entry<String, Object> entry : metrics.entrySet()) {
+                    player.sendMessage("§7  - " + entry.getKey() + ": §b" + entry.getValue());
+                }
+            }
+            
+            player.sendMessage("§a[Voice AI] ==============================");
+            
+            return CommandManager.CommandResult.success("Microphone status displayed.");
+            
+        } catch (Exception e) {
+            logger.severe("Error getting microphone status: " + e.getMessage());
+            return CommandManager.CommandResult.error("Error getting microphone status: " + e.getMessage());
         }
     }
     
@@ -639,7 +831,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
      */
     private List<String> getVoiceTabCompletions(CommandSender sender, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("start", "stop", "test", "status")
+            return Arrays.asList("start", "stop", "test", "status", "mictest", "mictest-stop", "micstatus")
                     .stream()
                     .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());

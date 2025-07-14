@@ -31,9 +31,6 @@ public class AudioPlayerService implements Service {
     private final AtomicLong totalQueuedAudio = new AtomicLong(0);
     private final AtomicLong audioDropped = new AtomicLong(0);
     
-    // Dependencies
-    private ServiceManager serviceManager;
-    
     /**
      * Position class for 3D coordinates in the game world
      */
@@ -136,7 +133,7 @@ public class AudioPlayerService implements Service {
     
     @Override
     public List<String> getDependencies() {
-        return Arrays.asList("service_manager");
+        return Arrays.asList(); // No dependencies - AudioPlayerService is independent
     }
     
     @Override
@@ -147,12 +144,6 @@ public class AudioPlayerService implements Service {
         }
         
         state = State.INITIALIZED;
-        
-        // Get dependencies
-        Service serviceManagerService = dependencies.get("service_manager");
-        if (serviceManagerService instanceof ServiceManager) {
-            this.serviceManager = (ServiceManager) serviceManagerService;
-        }
         
         System.out.println("[AudioPlayerService] Initialized with queue size limit: " + maxQueueSize);
     }
