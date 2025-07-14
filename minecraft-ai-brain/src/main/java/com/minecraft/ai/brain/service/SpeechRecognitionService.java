@@ -117,18 +117,31 @@ public class SpeechRecognitionService {
                 .setContent(ByteString.copyFrom(audioData))
                 .build();
             
+            logger.info("Sending recognition request to Google Cloud API:");
+            logger.info("  - Audio size: " + audioData.length + " bytes");
+            logger.info("  - Language code: " + SpeechToTextConfig.getLanguageCode());
+            logger.info("  - Sample rate: " + SpeechToTextConfig.getSampleRate() + " Hz");
+            logger.info("  - Model: latest_long");
+            logger.info("  - Enhanced: true");
+            
             // Perform recognition
             RecognizeResponse response = speechClient.recognize(config, audio);
             
+            logger.info("Received response from Google Cloud API:");
+            logger.info("  - Total results: " + response.getResultsCount());
+            
             // Process results
             StringBuilder transcript = new StringBuilder();
-            for (SpeechRecognitionResult result : response.getResultsList()) {
+            for (int i = 0; i < response.getResultsCount(); i++) {
+                SpeechRecognitionResult result = response.getResults(i);
+                logger.info("  - Result " + (i+1) + ": " + result.getAlternativesCount() + " alternatives");
+                
                 if (!result.getAlternativesList().isEmpty()) {
                     SpeechRecognitionAlternative alternative = result.getAlternatives(0);
                     String text = alternative.getTranscript().trim();
                     float confidence = alternative.getConfidence();
                     
-                    logger.info(String.format("Recognition result: '%s' (confidence: %.2f)", text, confidence));
+                    logger.info(String.format("    * Text: '%s' (confidence: %.2f)", text, confidence));
                     
                     // Only include results with reasonable confidence
                     if (confidence >= 0.5f || result.getAlternativesList().size() == 1) {
@@ -136,15 +149,24 @@ public class SpeechRecognitionService {
                         if (!text.isEmpty() && !text.endsWith(" ")) {
                             transcript.append(" ");
                         }
+                        logger.info("    * Text ACCEPTED (confidence >= 0.5 or only alternative)");
+                    } else {
+                        logger.info("    * Text REJECTED (confidence < 0.5)");
                     }
+                } else {
+                    logger.info("    * No alternatives in result " + (i+1));
                 }
             }
             
             String finalText = transcript.toString().trim();
+            logger.info("Final recognition result: '" + finalText + "'");
             
             // Cache the result if not empty
             if (!finalText.isEmpty()) {
                 cache.cacheResult(audioData, finalText);
+                logger.info("Result cached successfully");
+            } else {
+                logger.warning("Empty result - not caching");
             }
             
             // Record success in error handler

@@ -543,21 +543,26 @@ public class AudioCaptureService implements Service {
                 AudioQualityResult qualityResult = validateAudioQuality(audioBytes);
                 
                 if (!qualityResult.isValid()) {
-                    // 품질 문제에 따른 구체적인 피드백
-                    switch (qualityResult.reason) {
-                        case TOO_SHORT:
-                            // 너무 짧은 경우는 메시지 표시하지 않음 (자연스럽게)
-                            break;
-                        case TOO_QUIET:
-                            player.sendMessage("§6[STT] 마이크 볼륨이 너무 낮습니다. 더 크게 말씀해주세요.");
-                            break;
-                        case NO_VOICE_ACTIVITY:
-                            // 침묵인 경우는 메시지 표시하지 않음
-                            break;
-                        case MOSTLY_NOISE:
-                            player.sendMessage("§6[STT] 주변 소음이 많습니다. 조용한 곳에서 다시 시도해주세요.");
-                            break;
-                    }
+                    // 품질 문제에 따른 구체적인 피드백 (메인 스레드에서 실행)
+                    org.bukkit.Bukkit.getScheduler().runTask(
+                        org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                        () -> {
+                            switch (qualityResult.reason) {
+                                case TOO_SHORT:
+                                    // 너무 짧은 경우는 메시지 표시하지 않음 (자연스럽게)
+                                    break;
+                                case TOO_QUIET:
+                                    player.sendMessage("§6[STT] 마이크 볼륨이 너무 낮습니다. 더 크게 말씀해주세요.");
+                                    break;
+                                case NO_VOICE_ACTIVITY:
+                                    // 침묵인 경우는 메시지 표시하지 않음
+                                    break;
+                                case MOSTLY_NOISE:
+                                    player.sendMessage("§6[STT] 주변 소음이 많습니다. 조용한 곳에서 다시 시도해주세요.");
+                                    break;
+                            }
+                        }
+                    );
                     
                     // 버퍼 클리어하고 다음 사이클로
                     audioBuffer.reset();
@@ -566,28 +571,62 @@ public class AudioCaptureService implements Service {
                 }
                 
                 // ✅ 품질이 좋은 오디오만 STT 처리
-                player.sendMessage("§e[STT] 음성 인식 처리 중... (" + audioBytes.length + " bytes, 품질: " + qualityResult.qualityScore + "%)");
+                // 메인 스레드에서 메시지 전송
+                org.bukkit.Bukkit.getScheduler().runTask(
+                    org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                    () -> player.sendMessage("§e[STT] 음성 인식 처리 중... (" + audioBytes.length + " bytes, 품질: " + qualityResult.qualityScore + "%)")
+                );
+                
                 logger.info("Processing " + audioBytes.length + " bytes of audio for STT for player: " + player.getName() + " (Quality: " + qualityResult.qualityScore + "%)");
                 
                 // 비동기로 STT 처리
                 audioProcessor.submit(() -> {
                     try {
+                        logger.info("Starting Google Cloud Speech API call for player: " + player.getName());
+                        long startTime = System.currentTimeMillis();
+                        
                         String recognizedText = speechRecognitionService.recognizeSpeech(audioBytes);
                         
+                        long endTime = System.currentTimeMillis();
+                        logger.info("Google Cloud Speech API call completed for player: " + player.getName() + 
+                                   " (took " + (endTime - startTime) + "ms)");
+                        
                         if (recognizedText != null && !recognizedText.trim().isEmpty()) {
-                            player.sendMessage("§a[STT] 인식된 텍스트: " + recognizedText);
-                            processRecognizedSpeech(player, recognizedText.trim());
+                            logger.info("STT Recognition Success for " + player.getName() + ": '" + recognizedText + "'");
+                            
+                            // 메인 스레드에서 메시지 전송
+                            org.bukkit.Bukkit.getScheduler().runTask(
+                                org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                                () -> {
+                                    player.sendMessage("§a[STT] 인식된 텍스트: " + recognizedText);
+                                    processRecognizedSpeech(player, recognizedText.trim());
+                                }
+                            );
                         } else {
-                            // ✅ 개선: 더 구체적인 피드백
-                            if (qualityResult.hasVoiceActivity) {
-                                player.sendMessage("§6[STT] 음성이 감지되었지만 명확하게 인식되지 않았습니다. 더 또렷하게 말씀해주세요.");
-                            } else {
-                                player.sendMessage("§7[STT] 음성이 감지되지 않았습니다.");
-                            }
+                            logger.warning("STT Recognition returned empty/null result for player: " + player.getName());
+                            
+                            // 메인 스레드에서 메시지 전송
+                            org.bukkit.Bukkit.getScheduler().runTask(
+                                org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                                () -> {
+                                    // ✅ 개선: 더 구체적인 피드백
+                                    if (qualityResult.hasVoiceActivity) {
+                                        player.sendMessage("§6[STT] 음성이 감지되었지만 명확하게 인식되지 않았습니다. 더 또렷하게 말씀해주세요.");
+                                    } else {
+                                        player.sendMessage("§7[STT] 음성이 감지되지 않았습니다.");
+                                    }
+                                }
+                            );
                         }
                     } catch (Exception e) {
                         logger.severe("STT processing error for player " + player.getName() + ": " + e.getMessage());
-                        player.sendMessage("§c[STT] 음성 인식 오류가 발생했습니다: " + e.getMessage());
+                        e.printStackTrace(); // 스택 트레이스도 출력
+                        
+                        // 메인 스레드에서 에러 메시지 전송
+                        org.bukkit.Bukkit.getScheduler().runTask(
+                            org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                            () -> player.sendMessage("§c[STT] 음성 인식 오류가 발생했습니다: " + e.getMessage())
+                        );
                     }
                 });
                 
