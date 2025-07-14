@@ -353,50 +353,73 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
      */
     private boolean handleVoiceStart(CommandSender sender, String[] args) {
         try {
+            logger.info("=== Voice Start Command Debug ===");
+            
             if (!(sender instanceof Player)) {
                 sender.sendMessage("§c[Voice AI] This command can only be used by players.");
+                logger.info("Voice start rejected: sender is not a player");
                 return true;
             }
             
             Player player = (Player) sender;
+            logger.info("Voice start requested by player: " + player.getName());
             
             // Check if speech-to-text is enabled
             if (!SpeechToTextConfig.isEnabled()) {
                 player.sendMessage("§c[Voice AI] Speech-to-Text is disabled in the configuration.");
+                logger.warning("Voice start rejected: STT is disabled");
                 return true;
             }
+            
+            logger.info("STT is enabled, proceeding to service checks...");
             
             // Get AudioCaptureService and start real microphone monitoring
             try {
                 ServiceManager serviceManager = plugin.getServiceManager();
+                logger.info("ServiceManager obtained: " + (serviceManager != null ? "SUCCESS" : "NULL"));
+                
                 if (serviceManager == null) {
                     player.sendMessage("§c[Voice AI] ServiceManager를 찾을 수 없습니다.");
+                    logger.severe("ServiceManager is null!");
                     return true;
                 }
                 
                 Service audioCaptureService = serviceManager.getService("audio_capture");
+                logger.info("AudioCaptureService obtained: " + (audioCaptureService != null ? "SUCCESS" : "NULL"));
+                
                 if (audioCaptureService == null) {
                     player.sendMessage("§c[Voice AI] AudioCaptureService를 찾을 수 없습니다.");
+                    logger.severe("AudioCaptureService is null!");
                     return true;
                 }
                 
                 if (!(audioCaptureService instanceof AudioCaptureService)) {
                     player.sendMessage("§c[Voice AI] AudioCaptureService 타입이 올바르지 않습니다.");
+                    logger.severe("AudioCaptureService wrong type: " + audioCaptureService.getClass().getName());
                     return true;
                 }
                 
                 AudioCaptureService audioService = (AudioCaptureService) audioCaptureService;
+                logger.info("AudioCaptureService cast successful");
+                logger.info("AudioCaptureService state: " + audioService.getState());
+                logger.info("AudioCaptureService enabled: " + audioService.isEnabled());
                 
                 // Start audio monitoring with real microphone
+                logger.info("Calling audioService.startAudioMonitoring...");
                 audioService.startAudioMonitoring(player);
+                logger.info("audioService.startAudioMonitoring completed");
                 
                 // Start periodic status updates  
+                logger.info("Starting periodic status updates...");
                 startPeriodicStatusUpdates(player, audioService);
+                logger.info("Periodic status updates started");
                 
+                logger.info("Sending success messages to player...");
                 player.sendMessage("§a[Voice AI] 음성 처리가 시작되었습니다! 말씀해보세요...");
                 player.sendMessage("§7[Voice AI] 마이크가 활성화되어 실시간으로 음성을 인식합니다.");
                 player.sendMessage("§7[Voice AI] '!help' 명령어나 자연스럽게 AI와 대화할 수 있습니다.");
                 player.sendMessage("§e[Voice AI] 중지하려면 '/ai voice stop' 명령어를 사용하세요.");
+                logger.info("All success messages sent to player");
                 
             } catch (Exception e) {
                 logger.warning("Failed to start audio monitoring for voice processing: " + e.getMessage());
@@ -815,10 +838,10 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                     String volumeBar = createVolumeBar(volumeLevel);
                     
                     // Send real-time update
-                    player.sendMessage(String.format("§7[실시간] 볼륨: %s §7(%d%%) | 음성: %s", 
-                                                   volumeBar, 
-                                                   volumeLevel,
-                                                   (Boolean) status.get("voice_detected") ? "§a감지" : "§8무음"));
+                    // player.sendMessage(String.format("§7[실시간] 볼륨: %s §7(%d%%) | 음성: %s", 
+                    //                                volumeBar, 
+                    //                                volumeLevel,
+                    //                                (Boolean) status.get("voice_detected") ? "§a감지" : "§8무음"));
                     
                 } catch (Exception e) {
                     // If there's an error, stop the task
