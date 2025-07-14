@@ -286,7 +286,7 @@
             "description": "Implement the core speech recognition service with specific optimizations for Korean language processing.",
             "dependencies": [],
             "details": "1. Complete the SpeechRecognitionService class with Korean language optimization:\n```java\npublic class SpeechRecognitionService {\n    private final SpeechClient speechClient;\n    private final BlockingQueue<byte[]> audioQueue;\n    \n    public SpeechRecognitionService(SpeechClient speechClient) {\n        this.speechClient = speechClient;\n        this.audioQueue = new LinkedBlockingQueue<>();\n    }\n    \n    public void queueAudio(byte[] audioData) {\n        audioQueue.offer(audioData);\n    }\n    \n    public String recognizeSpeech(byte[] audioData) {\n        // Configure recognition for Korean language\n        RecognitionConfig config = RecognitionConfig.newBuilder()\n            .setEncoding(RecognitionConfig.AudioEncoding.LINEAR16)\n            .setSampleRateHertz(16000)\n            .setLanguageCode(\"ko-KR\")\n            .setModel(\"latest_long\")\n            .setEnableAutomaticPunctuation(true)\n            .setUseEnhanced(true)  // Use enhanced model\n            .addSpeechContexts(SpeechContext.newBuilder()\n                .addPhrases(\"게임\", \"마인크래프트\", \"명령어\")  // Add game-specific Korean terms\n                .build())\n            .build();\n        \n        RecognitionAudio audio = RecognitionAudio.newBuilder()\n            .setContent(ByteString.copyFrom(audioData))\n            .build();\n        \n        RecognizeResponse response = speechClient.recognize(config, audio);\n        StringBuilder transcript = new StringBuilder();\n        for (SpeechRecognitionResult result : response.getResultsList()) {\n            transcript.append(result.getAlternativesList().get(0).getTranscript());\n        }\n        return transcript.toString();\n    }\n    \n    public void startProcessingQueue() {\n        new Thread(() -> {\n            while (true) {\n                try {\n                    byte[] audioData = audioQueue.take();\n                    String text = recognizeSpeech(audioData);\n                    // Handle recognized text\n                } catch (InterruptedException e) {\n                    Thread.currentThread().interrupt();\n                    break;\n                }\n            }\n        }).start();\n    }\n}\n```\n2. Add Korean-specific preprocessing:\n   - Implement syllable-based confidence scoring\n   - Add common Korean gaming terminology to speech context\n   - Configure dialect settings for different Korean accents\n3. Create a Korean language model adapter that can be extended for other languages later",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Test with sample Korean audio files containing game-related commands. Compare recognition accuracy with and without the Korean-specific optimizations."
           },
           {
@@ -779,7 +779,7 @@
     ],
     "metadata": {
       "created": "2025-07-10T14:26:59.166Z",
-      "updated": "2025-07-13T10:05:53.040Z",
+      "updated": "2025-07-14T02:00:04.824Z",
       "description": "Tasks for hybrid-architecture context"
     }
   },
