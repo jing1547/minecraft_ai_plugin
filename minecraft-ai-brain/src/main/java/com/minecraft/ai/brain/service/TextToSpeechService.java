@@ -348,37 +348,48 @@ public class TextToSpeechService implements Service {
             // Generate SSML markup with emotion and Korean optimizations
             String ssmlText = addEmotionSSML(text, emotion);
             
-            // Check cache first (using SSML as key)
-            String cacheKey = "ssml|" + ssmlText + "|" + (emotion != null ? emotion : "default");
-            if (audioCache.containsKey(cacheKey)) {
-                logger.info(LOG_PREFIX + "Retrieved SSML audio from cache");
-                return audioCache.get(cacheKey);
+            // Use advanced cache manager with SSML text as key
+            if (cacheManager != null) {
+                return cacheManager.getAudio(ssmlText, emotion != null ? emotion : "neutral");
+            } else {
+                // Fallback to direct synthesis if cache manager is not available
+                return synthesizeSSMLDirectly(ssmlText, emotion);
             }
-            
-            // TODO: Implement actual Google Cloud TTS synthesis with SSML
-            // For now, return placeholder data
-            logger.info(LOG_PREFIX + "Synthesizing SSML speech with " + 
-                       (emotion != null ? emotion : "default") + " emotion: " + 
-                       text.substring(0, Math.min(30, text.length())) + 
-                       (text.length() > 30 ? "..." : ""));
-            
-            // Placeholder: return empty byte array
-            byte[] audioData = new byte[0];
-            
-            // Cache the result (with size limit)
-            if (audioCache.size() < maxCacheSize) {
-                audioCache.put(cacheKey, audioData);
-            }
-            
-            logger.info(LOG_PREFIX + "SSML speech synthesis completed (placeholder), audio size: " + 
-                       audioData.length + " bytes");
-            return audioData;
             
         } catch (Exception e) {
             currentHealth = ServiceHealth.degraded("SSML synthesis failed: " + e.getMessage());
             throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
                 "Failed to synthesize SSML speech: " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Directly synthesize SSML speech without caching (used internally by cache manager)
+     */
+    public byte[] synthesizeSSMLDirectly(String ssmlText, String emotion) throws ServiceException {
+        // Check rate limiting before making API call
+        if (rateLimiter != null && !rateLimiter.allowRequest()) {
+            long waitTime = rateLimiter.getTimeToNextAvailableSlot();
+            logger.warning(LOG_PREFIX + "Rate limit exceeded for SSML. Next slot available in " + waitTime + "ms");
+            
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.HEALTH_CHECK_FAILED,
+                "Rate limit exceeded for SSML. Try again in " + waitTime + "ms");
+        }
+        
+        // TODO: Implement actual Google Cloud TTS synthesis with SSML
+        logger.info(LOG_PREFIX + "Synthesizing SSML speech directly with " + 
+                   (emotion != null ? emotion : "default") + " emotion");
+        
+        // Simulate API call delay
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        // Placeholder: return empty byte array
+        logger.info(LOG_PREFIX + "SSML speech synthesis completed (placeholder), audio size: 0 bytes");
+        return new byte[0];
     }
     
     /**
@@ -540,33 +551,48 @@ public class TextToSpeechService implements Service {
             // 2. Add emotion-specific SSML
             String ssmlText = addEmotionSSML(processedText, emotion);
             
-            // 3. Check cache
-            String cacheKey = "advanced|" + ssmlText + "|" + (emotion != null ? emotion : "default");
-            if (audioCache.containsKey(cacheKey)) {
-                logger.info(LOG_PREFIX + "Retrieved advanced Korean audio from cache");
-                return audioCache.get(cacheKey);
+            // 3. Use advanced cache manager with processed SSML text
+            if (cacheManager != null) {
+                return cacheManager.getAudio(ssmlText, emotion != null ? emotion : "neutral");
+            } else {
+                // Fallback to direct synthesis if cache manager is not available
+                return synthesizeAdvancedKoreanDirectly(ssmlText, emotion);
             }
-            
-            // TODO: Implement actual Google Cloud TTS synthesis with advanced SSML
-            logger.info(LOG_PREFIX + "Synthesizing advanced Korean speech with " + 
-                       (emotion != null ? emotion : "default") + " emotion and intonation patterns");
-            
-            // Placeholder: return empty byte array
-            byte[] audioData = new byte[0];
-            
-            // Cache the result
-            if (audioCache.size() < maxCacheSize) {
-                audioCache.put(cacheKey, audioData);
-            }
-            
-            logger.info(LOG_PREFIX + "Advanced Korean speech synthesis completed (placeholder)");
-            return audioData;
             
         } catch (Exception e) {
             currentHealth = ServiceHealth.degraded("Advanced Korean synthesis failed: " + e.getMessage());
             throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
                 "Failed to synthesize advanced Korean speech: " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Directly synthesize advanced Korean speech without caching (used internally by cache manager)
+     */
+    public byte[] synthesizeAdvancedKoreanDirectly(String ssmlText, String emotion) throws ServiceException {
+        // Check rate limiting before making API call
+        if (rateLimiter != null && !rateLimiter.allowRequest()) {
+            long waitTime = rateLimiter.getTimeToNextAvailableSlot();
+            logger.warning(LOG_PREFIX + "Rate limit exceeded for advanced Korean. Next slot available in " + waitTime + "ms");
+            
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.HEALTH_CHECK_FAILED,
+                "Rate limit exceeded for advanced Korean. Try again in " + waitTime + "ms");
+        }
+        
+        // TODO: Implement actual Google Cloud TTS synthesis with advanced Korean SSML
+        logger.info(LOG_PREFIX + "Synthesizing advanced Korean speech directly with " + 
+                   (emotion != null ? emotion : "default") + " emotion and intonation patterns");
+        
+        // Simulate API call delay
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        // Placeholder: return empty byte array
+        logger.info(LOG_PREFIX + "Advanced Korean speech synthesis completed (placeholder), audio size: 0 bytes");
+        return new byte[0];
     }
     
     /**
@@ -625,8 +651,14 @@ public class TextToSpeechService implements Service {
      * Get service statistics
      */
     public String getServiceStats() {
-        return String.format("TTS Service Stats - Running: %s, Cache Size: %d/%d, Available Emotions: %d", 
-                           (currentState == State.RUNNING), audioCache.size(), maxCacheSize, 
-                           emotionVoiceMapping.size());
+        int cacheSize = cacheManager != null ? cacheManager.getCacheSize() : 0;
+        int maxCache = cacheManager != null ? cacheManager.getMaxCacheSize() : 0;
+        double hitRate = cacheManager != null ? cacheManager.getCacheHitRate() : 0.0;
+        
+        return String.format("TTS Service Stats - Running: %s, Cache: %d/%d (%.1f%% hit rate), Emotions: %d, Rate Limiter: %s", 
+                           (currentState == State.RUNNING), 
+                           cacheSize, maxCache, hitRate,
+                           emotionVoiceMapping.size(),
+                           rateLimiter != null ? rateLimiter.getStatusInfo() : "N/A");
     }
 } 
