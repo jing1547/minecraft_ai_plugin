@@ -103,4 +103,13 @@ task checkJavaVersion {
         println "Java Vendor: ${System.getProperty('java.vendor')}"
         println "Gradle Version: ${gradle.gradleVersion}"
     }
+}
+
+// Task to test Google Cloud connection
+task testGoogleCloudConnection(type: JavaExec) {
+    description = 'Test Google Cloud API connection'
+    group = 'verification'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'GoogleCloudConnectionTest'
+    dependsOn compileTestJava
 } 
