@@ -4,12 +4,15 @@ import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.logging.Logger;
 
 /**
  * APIRateLimiter implements rate limiting for API requests to stay within quotas.
  * Uses sliding window approach with configurable time windows and request limits.
  */
 public class APIRateLimiter {
+    
+    private static final Logger logger = Logger.getLogger(APIRateLimiter.class.getName());
     
     private final int maxRequestsPerWindow;
     private final long windowSizeMs;
@@ -37,7 +40,7 @@ public class APIRateLimiter {
         this.windowSizeMs = windowSizeMs;
         this.limitType = limitType;
         
-        System.out.println("[APIRateLimiter] Created " + limitType + " rate limiter: " + 
+        logger.info("[APIRateLimiter] Created " + limitType + " rate limiter: " + 
                          maxRequestsPerWindow + " requests per " + (windowSizeMs / 1000) + " seconds");
     }
     
@@ -75,14 +78,14 @@ public class APIRateLimiter {
             if (requestTimestamps.size() < maxRequestsPerWindow) {
                 requestTimestamps.add(currentTime);
                 allowedRequests.incrementAndGet();
-                System.out.println("[APIRateLimiter] " + limitType + " - Request ALLOWED (" + 
+                logger.info("[APIRateLimiter] " + limitType + " - Request ALLOWED (" + 
                                  requestTimestamps.size() + "/" + maxRequestsPerWindow + ")");
                 return true;
             } else {
                 rejectedRequests.incrementAndGet();
                 long waitTime = getTimeToNextAvailableSlot();
                 totalWaitTime.addAndGet(waitTime);
-                System.out.println("[APIRateLimiter] " + limitType + " - Request REJECTED. Wait " + 
+                logger.warning("[APIRateLimiter] " + limitType + " - Request REJECTED. Wait " + 
                                  waitTime + "ms (" + requestTimestamps.size() + "/" + maxRequestsPerWindow + ")");
                 return false;
             }
@@ -100,7 +103,7 @@ public class APIRateLimiter {
         while (!allowRequest()) {
             long waitTime = getTimeToNextAvailableSlot();
             if (waitTime > 0) {
-                System.out.println("[APIRateLimiter] " + limitType + " - Waiting " + waitTime + "ms for rate limit slot");
+                logger.info("[APIRateLimiter] " + limitType + " - Waiting " + waitTime + "ms for rate limit slot");
                 Thread.sleep(waitTime);
             }
         }
@@ -204,7 +207,7 @@ public class APIRateLimiter {
         lock.lock();
         try {
             requestTimestamps.clear();
-            System.out.println("[APIRateLimiter] " + limitType + " - Rate limiter reset");
+            logger.info("[APIRateLimiter] " + limitType + " - Rate limiter reset");
         } finally {
             lock.unlock();
         }
@@ -215,7 +218,7 @@ public class APIRateLimiter {
      */
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        System.out.println("[APIRateLimiter] " + limitType + " - Rate limiter " + 
+        logger.info("[APIRateLimiter] " + limitType + " - Rate limiter " + 
                          (enabled ? "enabled" : "disabled"));
     }
     
@@ -282,7 +285,7 @@ public class APIRateLimiter {
         allowedRequests.set(0);
         rejectedRequests.set(0);
         totalWaitTime.set(0);
-        System.out.println("[APIRateLimiter] " + limitType + " - Statistics reset");
+        logger.info("[APIRateLimiter] " + limitType + " - Statistics reset");
     }
     
     /**

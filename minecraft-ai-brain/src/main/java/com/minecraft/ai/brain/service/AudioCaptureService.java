@@ -206,16 +206,27 @@ public class AudioCaptureService implements Service {
     
     @Override
     public void start() throws ServiceException {
+        if (currentState != State.INITIALIZED) {
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.STARTUP_FAILED, 
+                                     "AudioCaptureService must be initialized before starting");
+        }
+        
         if (isRunning) {
-            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.STARTUP_FAILED, "Audio Capture Service is already running");
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.STARTUP_FAILED, 
+                                     "Audio Capture Service is already running");
         }
         
         logger.info("Starting Audio Capture Service...");
         
+        currentState = State.STARTING;
+        
         isRunning = true;
+        startTime = System.currentTimeMillis();
         
         // Start audio queue processor
         queueProcessorTask = audioProcessor.submit(this::processAudioQueue);
+        
+        currentState = State.RUNNING;
         
         logger.info("Audio Capture Service started successfully");
     }
@@ -227,6 +238,8 @@ public class AudioCaptureService implements Service {
         }
         
         logger.info("Stopping Audio Capture Service...");
+        
+        currentState = State.STOPPING;
         
         isRunning = false;
         
@@ -241,6 +254,8 @@ public class AudioCaptureService implements Service {
         
         // Clear audio queue
         audioQueue.clear();
+        
+        currentState = State.STOPPED;
         
         logger.info("Audio Capture Service stopped successfully");
     }

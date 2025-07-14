@@ -5,6 +5,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
 
 /**
  * AudioPlayerService handles audio playback with spatial positioning in the game environment.
@@ -14,6 +15,7 @@ public class AudioPlayerService implements Service {
     
     private static final String SERVICE_ID = "audio_player";
     private static final String SERVICE_NAME = "Audio Player Service";
+    private static final Logger logger = Logger.getLogger(AudioPlayerService.class.getName());
     
     private State state = State.NOT_INITIALIZED;
     private final AtomicBoolean isPlaying = new AtomicBoolean(false);
@@ -145,7 +147,7 @@ public class AudioPlayerService implements Service {
         
         state = State.INITIALIZED;
         
-        System.out.println("[AudioPlayerService] Initialized with queue size limit: " + maxQueueSize);
+        logger.info("[AudioPlayerService] Initialized with queue size limit: " + maxQueueSize);
     }
     
     @Override
@@ -163,7 +165,7 @@ public class AudioPlayerService implements Service {
             initializeAudioSystem();
             
             state = State.RUNNING;
-            System.out.println("[AudioPlayerService] Started successfully");
+            logger.info("[AudioPlayerService] Started successfully");
             
         } catch (Exception e) {
             state = State.FAILED;
@@ -188,7 +190,7 @@ public class AudioPlayerService implements Service {
             audioQueue.clear();
             
             state = State.STOPPED;
-            System.out.println("[AudioPlayerService] Stopped successfully");
+            logger.info("[AudioPlayerService] Stopped successfully");
             
         } catch (Exception e) {
             state = State.FAILED;
@@ -257,7 +259,7 @@ public class AudioPlayerService implements Service {
             this.maxQueueSize = ((Number) newConfig.get("max_queue_size")).intValue();
         }
         
-        System.out.println("[AudioPlayerService] Configuration updated");
+        logger.info("[AudioPlayerService] Configuration updated");
     }
     
     @Override
@@ -295,19 +297,19 @@ public class AudioPlayerService implements Service {
      */
     public boolean queueAudio(byte[] audioData, Position position, UUID entityId, String emotion, double priority) {
         if (!enabled || state != State.RUNNING) {
-            System.out.println("[AudioPlayerService] Cannot queue audio - service not running");
+            logger.warning("[AudioPlayerService] Cannot queue audio - service not running");
             return false;
         }
         
         if (audioData == null || audioData.length == 0) {
-            System.out.println("[AudioPlayerService] Cannot queue empty audio data");
+            logger.warning("[AudioPlayerService] Cannot queue empty audio data");
             return false;
         }
         
         // Check queue size limit
         if (audioQueue.size() >= maxQueueSize) {
             audioDropped.incrementAndGet();
-            System.out.println("[AudioPlayerService] Audio queue full, dropping audio entry");
+            logger.warning("[AudioPlayerService] Audio queue full, dropping audio entry");
             return false;
         }
         
@@ -349,7 +351,7 @@ public class AudioPlayerService implements Service {
      */
     private void playAudioEntry(AudioEntry entry) {
         try {
-            System.out.println("[AudioPlayerService] Playing audio at position: " + entry.getPosition() + 
+            logger.info("[AudioPlayerService] Playing audio at position: " + entry.getPosition() + 
                              " for entity: " + entry.getEntityId() + 
                              " with emotion: " + entry.getEmotion());
             
@@ -366,7 +368,7 @@ public class AudioPlayerService implements Service {
             Thread.sleep(Math.min(entry.getAudioData().length / 100, 5000)); // Max 5 seconds
             
         } catch (Exception e) {
-            System.err.println("[AudioPlayerService] Error playing audio entry: " + e.getMessage());
+            logger.severe("[AudioPlayerService] Error playing audio entry: " + e.getMessage());
         }
     }
     
@@ -379,7 +381,7 @@ public class AudioPlayerService implements Service {
         // 2. Register it as a dynamic sound resource in Minecraft
         // 3. Return a proper SoundEvent
         
-        System.out.println("[AudioPlayerService] Converting " + audioData.length + 
+        logger.info("[AudioPlayerService] Converting " + audioData.length + 
                          " bytes of audio data to sound event (emotion: " + emotion + ")");
         
         // For now, return a wrapper with metadata
@@ -400,7 +402,7 @@ public class AudioPlayerService implements Service {
         double pan = 0.0;    // Center stereo position
         
         // Placeholder calculations
-        System.out.println("[AudioPlayerService] Calculating spatial audio for position: " + position);
+        logger.info("[AudioPlayerService] Calculating spatial audio for position: " + position);
         
         return new SpatialAudioParams(volume, pitch, pan, position);
     }
@@ -412,7 +414,7 @@ public class AudioPlayerService implements Service {
         // In a real implementation, this would use Minecraft's sound system:
         // world.playSound(null, position.x, position.y, position.z, soundEvent, SoundCategory, volume, pitch);
         
-        System.out.println("[AudioPlayerService] Playing spatial audio - " +
+        logger.info("[AudioPlayerService] Playing spatial audio - " +
                          "Volume: " + spatialParams.getVolume() + 
                          ", Pitch: " + spatialParams.getPitch() + 
                          ", Pan: " + spatialParams.getPan() +
@@ -423,12 +425,12 @@ public class AudioPlayerService implements Service {
      * Initialize the audio system
      */
     private void initializeAudioSystem() {
-        System.out.println("[AudioPlayerService] Initializing audio system...");
+        logger.info("[AudioPlayerService] Initializing audio system...");
         // In a real implementation, this would:
         // 1. Initialize Minecraft audio components
         // 2. Register dynamic sound events
         // 3. Set up audio resources
-        System.out.println("[AudioPlayerService] Audio system initialized");
+        logger.info("[AudioPlayerService] Audio system initialized");
     }
     
     /**
@@ -443,7 +445,7 @@ public class AudioPlayerService implements Service {
      */
     public void clearQueue() {
         audioQueue.clear();
-        System.out.println("[AudioPlayerService] Audio queue cleared");
+        logger.info("[AudioPlayerService] Audio queue cleared");
     }
     
     /**

@@ -4,12 +4,15 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.logging.Logger;
 
 /**
  * TTSCacheManager manages audio caching for Text-to-Speech operations.
  * Implements LRU (Least Recently Used) cache eviction policy for efficient memory usage.
  */
 public class TTSCacheManager {
+    
+    private static final Logger logger = Logger.getLogger(TTSCacheManager.class.getName());
     
     private final Map<String, CacheEntry> audioCache = new ConcurrentHashMap<>();
     private final Map<String, Long> accessTimes = new ConcurrentHashMap<>();
@@ -112,7 +115,7 @@ public class TTSCacheManager {
             if (entry != null && !entry.isExpired(maxCacheAgeMs)) {
                 cacheHits.incrementAndGet();
                 updateAccessTime(cacheKey);
-                System.out.println("[TTSCacheManager] Cache HIT for key: " + cacheKey.substring(0, Math.min(50, cacheKey.length())) + "...");
+                logger.info("[TTSCacheManager] Cache HIT for key: " + cacheKey.substring(0, Math.min(50, cacheKey.length())) + "...");
                 return entry.getAudioData();
             }
         } finally {
@@ -121,13 +124,13 @@ public class TTSCacheManager {
         
         // Cache miss - generate new audio
         cacheMisses.incrementAndGet();
-        System.out.println("[TTSCacheManager] Cache MISS for key: " + cacheKey.substring(0, Math.min(50, cacheKey.length())) + "...");
+        logger.warning("[TTSCacheManager] Cache MISS for key: " + cacheKey.substring(0, Math.min(50, cacheKey.length())) + "...");
         
         byte[] audioData;
         try {
             audioData = ttsService.synthesizeSpeech(text, emotion != null ? emotion : "neutral");
         } catch (Exception e) {
-            System.err.println("[TTSCacheManager] Failed to generate audio: " + e.getMessage());
+            logger.severe("[TTSCacheManager] Failed to generate audio: " + e.getMessage());
             throw new RuntimeException("Failed to generate audio for text: " + text, e);
         }
         
@@ -160,7 +163,7 @@ public class TTSCacheManager {
             audioCache.put(cacheKey, entry);
             updateAccessTime(cacheKey);
             
-            System.out.println("[TTSCacheManager] Added to cache: " + cacheKey.substring(0, Math.min(50, cacheKey.length())) + 
+            logger.info("[TTSCacheManager] Added to cache: " + cacheKey.substring(0, Math.min(50, cacheKey.length())) + 
                              "... (Size: " + audioCache.size() + "/" + maxCacheSize + ")");
             
         } finally {
@@ -213,7 +216,7 @@ public class TTSCacheManager {
             audioCache.remove(lruKey);
             accessTimes.remove(lruKey);
             evictions.incrementAndGet();
-            System.out.println("[TTSCacheManager] Evicted LRU entry: " + lruKey.substring(0, Math.min(50, lruKey.length())) + "...");
+            logger.info("[TTSCacheManager] Evicted LRU entry: " + lruKey.substring(0, Math.min(50, lruKey.length())) + "...");
         }
     }
     
@@ -225,7 +228,7 @@ public class TTSCacheManager {
         try {
             audioCache.clear();
             accessTimes.clear();
-            System.out.println("[TTSCacheManager] Cache cleared");
+            logger.info("[TTSCacheManager] Cache cleared");
         } finally {
             lock.writeLock().unlock();
         }
@@ -252,7 +255,7 @@ public class TTSCacheManager {
             }
             
             if (!expiredKeys.isEmpty()) {
-                System.out.println("[TTSCacheManager] Cleaned up " + expiredKeys.size() + " expired entries");
+                logger.info("[TTSCacheManager] Cleaned up " + expiredKeys.size() + " expired entries");
             }
             
         } finally {
@@ -273,14 +276,14 @@ public class TTSCacheManager {
                     Thread.currentThread().interrupt();
                     break;
                 } catch (Exception e) {
-                    System.err.println("[TTSCacheManager] Cleanup thread error: " + e.getMessage());
+                    logger.severe("[TTSCacheManager] Cleanup thread error: " + e.getMessage());
                 }
             }
         }, "TTS-Cache-Cleanup");
         
         cleanupThread.setDaemon(true);
         cleanupThread.start();
-        System.out.println("[TTSCacheManager] Started cache cleanup thread");
+        logger.info("[TTSCacheManager] Started cache cleanup thread");
     }
     
     // =========================
@@ -372,17 +375,17 @@ public class TTSCacheManager {
      * Preload common phrases into cache
      */
     public void preloadCommonPhrases(List<String> phrases, String emotion) {
-        System.out.println("[TTSCacheManager] Preloading " + phrases.size() + " common phrases with emotion: " + emotion);
+        logger.info("[TTSCacheManager] Preloading " + phrases.size() + " common phrases with emotion: " + emotion);
         
         for (String phrase : phrases) {
             try {
                 getAudio(phrase, emotion);
             } catch (Exception e) {
-                System.err.println("[TTSCacheManager] Failed to preload phrase: " + phrase + " - " + e.getMessage());
+                logger.severe("[TTSCacheManager] Failed to preload phrase: " + phrase + " - " + e.getMessage());
             }
         }
         
-        System.out.println("[TTSCacheManager] Preloading completed. Cache size: " + getCacheSize());
+        logger.info("[TTSCacheManager] Preloading completed. Cache size: " + getCacheSize());
     }
     
     /**
@@ -393,6 +396,6 @@ public class TTSCacheManager {
         cacheMisses.set(0);
         evictions.set(0);
         totalRequests.set(0);
-        System.out.println("[TTSCacheManager] Cache statistics reset");
+        logger.info("[TTSCacheManager] Cache statistics reset");
     }
 } 
