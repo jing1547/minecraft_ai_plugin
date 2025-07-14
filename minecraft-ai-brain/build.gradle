@@ -53,12 +53,17 @@ shadowJar {
     // 서비스 파일들을 제대로 병합 (gRPC LoadBalancer 등)
     mergeServiceFiles()
     
-    // 패키지 relocate - gRPC 관련은 제외
+    // 패키지 relocate - 충돌 방지
     relocate 'com.google.gson', 'com.minecraft.ai.brain.libs.gson'
     relocate 'org.java_websocket', 'com.minecraft.ai.brain.libs.websocket'
     
-    // Google 패키지들은 relocate하지 않음 (gRPC 서비스 등록 문제 방지)
-    // relocate 'com.google', 'com.minecraft.ai.brain.libs.google'
+    // Google Cloud 관련 패키지들 relocate (Paper와의 충돌 방지)
+    relocate 'com.google.protobuf', 'com.minecraft.ai.brain.libs.protobuf'
+    relocate 'io.grpc', 'com.minecraft.ai.brain.libs.grpc'
+    relocate 'com.google.api', 'com.minecraft.ai.brain.libs.google.api'
+    relocate 'com.google.cloud', 'com.minecraft.ai.brain.libs.google.cloud'
+    relocate 'com.google.auth', 'com.minecraft.ai.brain.libs.google.auth'
+    relocate 'com.google.common', 'com.minecraft.ai.brain.libs.guava'
     
     manifest {
         attributes(
