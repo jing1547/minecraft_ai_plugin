@@ -328,6 +328,27 @@ public class MessageDispatcher {
      * Register default system handlers
      */
     private void registerDefaultHandlers() {
+        // Handshake command handler
+        registerCommandHandler("handshake", (message, connection) -> {
+            String handshakeResponse = String.format(
+                    "{\"type\":\"response\",\"id\":\"%s\",\"timestamp\":\"%s\",\"version\":\"1.0.0\"," +
+                    "\"correlationId\":\"%s\",\"payload\":{\"success\":true,\"result\":{" +
+                    "\"connectionId\":\"%s\",\"serverVersion\":\"1.0.0\",\"message\":\"Handshake successful\"}}}",
+                    java.util.UUID.randomUUID().toString(),
+                    java.time.Instant.now().toString(),
+                    message.getId(),
+                    connection.getId()
+            );
+            
+            logger.info("Handshake received from client: {}", connection.getId());
+            
+            try {
+                return MessageSerializer.deserialize(handshakeResponse);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create handshake response", e);
+            }
+        });
+        
         // Status command handler
         registerCommandHandler("status", (message, connection) -> {
             ConnectionManager.ConnectionStats stats = connectionManager.getStats();
