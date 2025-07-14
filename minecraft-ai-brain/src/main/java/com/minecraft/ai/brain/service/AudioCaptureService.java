@@ -10,6 +10,7 @@ import java.util.UUID;
 import java.util.List;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -18,10 +19,16 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.logging.Logger;
 import java.util.logging.Level;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Service for handling audio capture and processing from players
- * Manages audio streams and prepares them for Speech-to-Text processing
+ * AudioCaptureService captures and processes audio input from players
+ * Provides real-time audio monitoring and voice activity detection
  */
 public class AudioCaptureService implements Service {
     
@@ -30,17 +37,30 @@ public class AudioCaptureService implements Service {
     private static final int AUDIO_BITS_PER_SAMPLE = 16;
     private static final int AUDIO_CHANNELS = 1; // Mono
     private static final int BUFFER_SIZE = 4096;
+    private static final double SILENCE_THRESHOLD = 0.01; // Threshold for detecting silence
+    private static final int VOICE_ACTIVITY_WINDOW = 10; // Number of frames to analyze for voice activity
     
     private final Logger logger = Logger.getLogger(AudioCaptureService.class.getName());
     
-    // Audio processing
+    // Core service components
     private final Map<UUID, AudioSession> activeSessions = new ConcurrentHashMap<>();
     private final BlockingQueue<AudioData> audioQueue = new LinkedBlockingQueue<>();
     private final ExecutorService audioProcessor = Executors.newFixedThreadPool(3);
     
+    // Audio monitoring
+    private final AtomicInteger currentVolumeLevel = new AtomicInteger(0); // 0-100
+    private final AtomicLong totalAudioFrames = new AtomicLong(0);
+    private final AtomicLong voiceActiveFrames = new AtomicLong(0);
+    private final AtomicBoolean voiceActivityDetected = new AtomicBoolean(false);
+    private final Queue<Double> recentVolumeHistory = new ConcurrentLinkedQueue<>();
+    
+    // Player-specific monitoring control
+    private final Set<UUID> monitoringPlayers = ConcurrentHashMap.newKeySet();
+    
     // Service state
     private boolean isRunning = false;
     private Future<?> queueProcessorTask;
+    private Future<?> volumeMonitorTask;
     private State currentState = State.NOT_INITIALIZED;
     private long startTime = -1;
     private boolean enabled = true;
@@ -487,5 +507,218 @@ public class AudioCaptureService implements Service {
             AUDIO_BITS_PER_SAMPLE,
             AUDIO_CHANNELS
         );
+    }
+    
+    /**
+     * Start real-time audio monitoring for microphone testing
+     */
+    public void startAudioMonitoring(Player player) {
+        if (!isRunning) {
+            logger.warning("Cannot start audio monitoring - service not running");
+            return;
+        }
+        
+        logger.info("Starting audio monitoring for player: " + player.getName());
+        
+        // Add player to monitoring set
+        UUID playerId = player.getUniqueId();
+        monitoringPlayers.add(playerId);
+        
+        // Reset statistics for new monitoring session
+        totalAudioFrames.set(0);
+        voiceActiveFrames.set(0);
+        currentVolumeLevel.set(0);
+        voiceActivityDetected.set(false);
+        recentVolumeHistory.clear();
+        
+        // Start capture session for this player
+        startCaptureSession(player);
+        
+        // Start volume monitoring task if not already running
+        if (volumeMonitorTask == null || volumeMonitorTask.isDone()) {
+            volumeMonitorTask = audioProcessor.submit(this::monitorAudioLevels);
+        }
+        
+        player.sendMessage("§a[Audio Test] 마이크 모니터링이 시작되었습니다. 말씀해보세요!");
+        player.sendMessage("§7[Audio Test] 실시간 볼륨 레벨과 음성 활동이 감지됩니다.");
+    }
+    
+    /**
+     * Stop audio monitoring for microphone testing
+     */
+    public void stopAudioMonitoring(Player player) {
+        logger.info("Stopping audio monitoring for player: " + player.getName());
+        
+        // Remove player from monitoring set
+        UUID playerId = player.getUniqueId();
+        monitoringPlayers.remove(playerId);
+        
+        stopCaptureSession(player);
+        
+        // If no players are being monitored, stop the volume monitor task
+        if (monitoringPlayers.isEmpty() && volumeMonitorTask != null) {
+            volumeMonitorTask.cancel(true);
+        }
+        
+        player.sendMessage("§e[Audio Test] 마이크 모니터링이 중지되었습니다.");
+        
+        // Show final statistics
+        showAudioStatistics(player);
+    }
+    
+    /**
+     * Check if a specific player is being monitored
+     */
+    public boolean isPlayerBeingMonitored(Player player) {
+        return monitoringPlayers.contains(player.getUniqueId());
+    }
+    
+    /**
+     * Get current audio monitoring status
+     */
+    public Map<String, Object> getAudioMonitoringStatus() {
+        Map<String, Object> status = new HashMap<>();
+        status.put("volume_level", currentVolumeLevel.get());
+        status.put("voice_detected", voiceActivityDetected.get());
+        status.put("total_frames", totalAudioFrames.get());
+        status.put("voice_active_frames", voiceActiveFrames.get());
+        status.put("voice_activity_percentage", getVoiceActivityPercentage());
+        status.put("average_volume", getAverageVolume());
+        status.put("active_sessions", activeSessions.size());
+        return status;
+    }
+    
+    /**
+     * Calculate voice activity percentage
+     */
+    private double getVoiceActivityPercentage() {
+        long total = totalAudioFrames.get();
+        if (total == 0) return 0.0;
+        return (double) voiceActiveFrames.get() / total * 100.0;
+    }
+    
+    /**
+     * Calculate average volume from recent history
+     */
+    private double getAverageVolume() {
+        if (recentVolumeHistory.isEmpty()) return 0.0;
+        
+        double sum = 0.0;
+        int count = 0;
+        for (Double volume : recentVolumeHistory) {
+            sum += volume;
+            count++;
+        }
+        return count > 0 ? sum / count : 0.0;
+    }
+    
+    /**
+     * Monitor audio levels in real-time
+     */
+    private void monitorAudioLevels() {
+        logger.info("Starting real-time audio level monitoring");
+        
+        while (isRunning && !Thread.currentThread().isInterrupted()) {
+            try {
+                // Check if any players are currently being monitored
+                if (monitoringPlayers.isEmpty()) {
+                    Thread.sleep(500); // Wait before checking again
+                    continue;
+                }
+                
+                // Poll audio data from queue
+                AudioData audioData = audioQueue.poll(100, TimeUnit.MILLISECONDS);
+                if (audioData != null) {
+                    // Only analyze if the player is being monitored
+                    if (monitoringPlayers.contains(audioData.getPlayerId())) {
+                        analyzeAudioFrame(audioData.getData());
+                    }
+                }
+                
+                // Clean up old volume history (keep last 100 entries)
+                while (recentVolumeHistory.size() > 100) {
+                    recentVolumeHistory.poll();
+                }
+                
+            } catch (InterruptedException e) {
+                logger.info("Audio monitoring interrupted");
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                logger.warning("Error in audio monitoring: " + e.getMessage());
+            }
+        }
+        
+        logger.info("Audio level monitoring stopped");
+    }
+    
+    /**
+     * Analyze individual audio frame for volume and voice activity
+     */
+    private void analyzeAudioFrame(byte[] audioData) {
+        if (audioData == null || audioData.length == 0) return;
+        
+        // Calculate RMS (Root Mean Square) for volume level
+        double rms = calculateRMS(audioData);
+        
+        // Convert to volume percentage (0-100)
+        int volumePercent = Math.min(100, (int) (rms * 100 * 10)); // Scale factor for sensitivity
+        currentVolumeLevel.set(volumePercent);
+        
+        // Add to history
+        recentVolumeHistory.offer(rms);
+        
+        // Voice activity detection
+        boolean isVoiceActive = rms > SILENCE_THRESHOLD;
+        voiceActivityDetected.set(isVoiceActive);
+        
+        // Update counters
+        totalAudioFrames.incrementAndGet();
+        if (isVoiceActive) {
+            voiceActiveFrames.incrementAndGet();
+        }
+        
+        // Log periodic updates (every 50 frames) only when actively monitoring
+        if (totalAudioFrames.get() % 50 == 0 && !monitoringPlayers.isEmpty()) {
+            logger.info(String.format("Audio Stats - Volume: %d%%, Voice Active: %s, Total Frames: %d", 
+                                    volumePercent, isVoiceActive ? "YES" : "NO", totalAudioFrames.get()));
+        }
+    }
+    
+    /**
+     * Calculate RMS (Root Mean Square) for audio volume
+     */
+    private double calculateRMS(byte[] audioData) {
+        long sum = 0;
+        int sampleCount = audioData.length / 2; // 16-bit samples
+        
+        for (int i = 0; i < audioData.length - 1; i += 2) {
+            // Convert bytes to 16-bit sample
+            short sample = (short) ((audioData[i + 1] << 8) | (audioData[i] & 0xFF));
+            sum += sample * sample;
+        }
+        
+        if (sampleCount == 0) return 0.0;
+        return Math.sqrt((double) sum / sampleCount) / 32768.0; // Normalize to 0-1
+    }
+    
+    /**
+     * Show audio statistics to player
+     */
+    private void showAudioStatistics(Player player) {
+        Map<String, Object> stats = getAudioMonitoringStatus();
+        
+        player.sendMessage("§b=== 마이크 테스트 결과 ===");
+        player.sendMessage("§7최종 볼륨 레벨: §a" + stats.get("volume_level") + "%");
+        player.sendMessage("§7음성 활동 감지: " + (voiceActivityDetected.get() ? "§a✓ 감지됨" : "§c✗ 감지 안됨"));
+        player.sendMessage("§7총 오디오 프레임: §e" + stats.get("total_frames"));
+        player.sendMessage("§7음성 활동 비율: §e" + String.format("%.1f%%", stats.get("voice_activity_percentage")));
+        player.sendMessage("§7평균 볼륨: §e" + String.format("%.2f", stats.get("average_volume")));
+        
+        if (totalAudioFrames.get() > 0) {
+            player.sendMessage("§a✓ 마이크 입력이 정상적으로 감지되었습니다!");
+        } else {
+            player.sendMessage("§c✗ 마이크 입력이 감지되지 않았습니다. 마이크 설정을 확인해주세요.");
+        }
     }
 } 

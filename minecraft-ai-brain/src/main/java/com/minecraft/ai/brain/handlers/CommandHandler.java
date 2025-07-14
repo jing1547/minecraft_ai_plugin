@@ -13,6 +13,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -32,6 +33,9 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     
     // Command cooldown tracking
     private final Map<String, Long> commandCooldowns = new HashMap<>();
+    
+    // Track running periodic update tasks by player UUID
+    private final Map<UUID, BukkitTask> periodicUpdateTasks = new HashMap<>();
     
     public CommandHandler(MinecraftAIBrainPlugin plugin) {
         this.plugin = plugin;
@@ -571,153 +575,234 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     }
     
     /**
-     * Start microphone test for the player
-     * @param sender Command sender
-     * @return Command result
+     * Start microphone input test with real-time monitoring
      */
     private CommandManager.CommandResult startMicrophoneTest(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            return CommandManager.CommandResult.error("이 명령어는 플레이어만 사용할 수 있습니다.");
+        }
+        
+        Player player = (Player) sender;
+        
         try {
-            if (!(sender instanceof Player)) {
-                return CommandManager.CommandResult.error("This command can only be used by players.");
-            }
-            
-            Player player = (Player) sender;
+            // Get AudioCaptureService from ServiceManager
             ServiceManager serviceManager = plugin.getServiceManager();
-            
             if (serviceManager == null) {
-                return CommandManager.CommandResult.error("ServiceManager not available.");
+                return CommandManager.CommandResult.error("ServiceManager를 찾을 수 없습니다.");
             }
             
-            AudioCaptureService audioCaptureService = (AudioCaptureService) serviceManager.getService("audio_capture");
+            Service audioCaptureService = serviceManager.getService("audio_capture");
             if (audioCaptureService == null) {
-                return CommandManager.CommandResult.error("AudioCaptureService not available.");
+                return CommandManager.CommandResult.error("AudioCaptureService를 찾을 수 없습니다.");
             }
             
-            // Check if service is running
-            if (audioCaptureService.getState() != Service.State.RUNNING) {
-                return CommandManager.CommandResult.error("AudioCaptureService is not running. Current state: " + audioCaptureService.getState());
+            if (!(audioCaptureService instanceof AudioCaptureService)) {
+                return CommandManager.CommandResult.error("AudioCaptureService 타입이 올바르지 않습니다.");
             }
             
-            // Start capture session
-            boolean sessionStarted = audioCaptureService.startCaptureSession(player);
-            if (sessionStarted) {
-                player.sendMessage("§a[Voice AI] ✓ Microphone test started!");
-                player.sendMessage("§6[Voice AI] Speak into your microphone...");
-                player.sendMessage("§7[Voice AI] Audio Format: " + audioCaptureService.getAudioFormatInfo());
-                player.sendMessage("§6[Voice AI] Use '/ai voice mictest-stop' to end the test");
-                return CommandManager.CommandResult.success("Microphone test session started successfully.");
-            } else {
-                return CommandManager.CommandResult.error("Failed to start microphone capture session.");
+            AudioCaptureService audioService = (AudioCaptureService) audioCaptureService;
+            
+            // Check service status
+            if (audioService.getState() != Service.State.RUNNING) {
+                return CommandManager.CommandResult.error("AudioCaptureService가 실행 중이 아닙니다. 상태: " + audioService.getState());
             }
+            
+            player.sendMessage("§a[마이크 테스트] 실시간 마이크 모니터링을 시작합니다...");
+            player.sendMessage("§7[마이크 테스트] 마이크에 대고 말씀해보세요. 볼륨과 음성 활동이 실시간으로 감지됩니다.");
+            player.sendMessage("§7[마이크 테스트] 중지하려면 '/ai voice mictest-stop'을 입력하세요.");
+            
+            // Start real-time audio monitoring
+            audioService.startAudioMonitoring(player);
+            
+            // Start periodic status updates
+            startPeriodicStatusUpdates(player, audioService);
+            
+            return CommandManager.CommandResult.success("마이크 테스트가 시작되었습니다. 말씀해보세요!");
             
         } catch (Exception e) {
-            logger.severe("Error starting microphone test: " + e.getMessage());
-            return CommandManager.CommandResult.error("Error starting microphone test: " + e.getMessage());
+            logger.warning("마이크 테스트 시작 중 오류: " + e.getMessage());
+            return CommandManager.CommandResult.error("마이크 테스트 시작 실패: " + e.getMessage());
         }
     }
     
     /**
-     * Stop microphone test for the player
-     * @param sender Command sender
-     * @return Command result
+     * Stop microphone input test
      */
     private CommandManager.CommandResult stopMicrophoneTest(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            return CommandManager.CommandResult.error("이 명령어는 플레이어만 사용할 수 있습니다.");
+        }
+        
+        Player player = (Player) sender;
+        
         try {
-            if (!(sender instanceof Player)) {
-                return CommandManager.CommandResult.error("This command can only be used by players.");
-            }
-            
-            Player player = (Player) sender;
+            // Get AudioCaptureService from ServiceManager
             ServiceManager serviceManager = plugin.getServiceManager();
-            
             if (serviceManager == null) {
-                return CommandManager.CommandResult.error("ServiceManager not available.");
+                return CommandManager.CommandResult.error("ServiceManager를 찾을 수 없습니다.");
             }
             
-            AudioCaptureService audioCaptureService = (AudioCaptureService) serviceManager.getService("audio_capture");
+            Service audioCaptureService = serviceManager.getService("audio_capture");
             if (audioCaptureService == null) {
-                return CommandManager.CommandResult.error("AudioCaptureService not available.");
+                return CommandManager.CommandResult.error("AudioCaptureService를 찾을 수 없습니다.");
             }
             
-            // Stop capture session
-            boolean sessionStopped = audioCaptureService.stopCaptureSession(player);
-            if (sessionStopped) {
-                player.sendMessage("§a[Voice AI] ✓ Microphone test stopped!");
-                player.sendMessage("§7[Voice AI] Microphone capture session ended.");
-                return CommandManager.CommandResult.success("Microphone test session stopped successfully.");
-            } else {
-                return CommandManager.CommandResult.warning("No active microphone session found for player.");
+            if (!(audioCaptureService instanceof AudioCaptureService)) {
+                return CommandManager.CommandResult.error("AudioCaptureService 타입이 올바르지 않습니다.");
             }
+            
+            AudioCaptureService audioService = (AudioCaptureService) audioCaptureService;
+            
+            // Stop audio monitoring
+            audioService.stopAudioMonitoring(player);
+            
+            // Stop periodic updates
+            stopPeriodicStatusUpdates(player);
+            
+            return CommandManager.CommandResult.success("마이크 테스트가 중지되었습니다.");
             
         } catch (Exception e) {
-            logger.severe("Error stopping microphone test: " + e.getMessage());
-            return CommandManager.CommandResult.error("Error stopping microphone test: " + e.getMessage());
+            logger.warning("마이크 테스트 중지 중 오류: " + e.getMessage());
+            return CommandManager.CommandResult.error("마이크 테스트 중지 실패: " + e.getMessage());
         }
     }
     
     /**
-     * Get microphone status for the player
-     * @param sender Command sender
-     * @return Command result
+     * Get detailed microphone status with real-time data
      */
     private CommandManager.CommandResult getMicrophoneStatus(CommandSender sender) {
         try {
-            if (!(sender instanceof Player)) {
-                return CommandManager.CommandResult.error("This command can only be used by players.");
-            }
-            
-            Player player = (Player) sender;
+            // Get AudioCaptureService from ServiceManager
             ServiceManager serviceManager = plugin.getServiceManager();
-            
-            player.sendMessage("§a[Voice AI] ===== Microphone Status =====");
-            
             if (serviceManager == null) {
-                player.sendMessage("§c[Voice AI] ServiceManager: Not Available");
-                return CommandManager.CommandResult.warning("ServiceManager not available.");
+                return CommandManager.CommandResult.error("ServiceManager를 찾을 수 없습니다.");
             }
             
-            AudioCaptureService audioCaptureService = (AudioCaptureService) serviceManager.getService("audio_capture");
+            Service audioCaptureService = serviceManager.getService("audio_capture");
             if (audioCaptureService == null) {
-                player.sendMessage("§c[Voice AI] AudioCaptureService: Not Available");
-                return CommandManager.CommandResult.warning("AudioCaptureService not available.");
+                return CommandManager.CommandResult.error("AudioCaptureService를 찾을 수 없습니다.");
             }
             
-            // Service status
-            player.sendMessage("§7[Voice AI] Service State: §b" + audioCaptureService.getState());
-            player.sendMessage("§7[Voice AI] Service Health: §b" + audioCaptureService.getHealth().getStatus());
-            player.sendMessage("§7[Voice AI] Service Enabled: §b" + audioCaptureService.isEnabled());
-            
-            if (audioCaptureService.getStartTime() > 0) {
-                long uptime = audioCaptureService.getUptime();
-                player.sendMessage("§7[Voice AI] Service Uptime: §b" + formatUptime(uptime));
+            if (!(audioCaptureService instanceof AudioCaptureService)) {
+                return CommandManager.CommandResult.error("AudioCaptureService 타입이 올바르지 않습니다.");
             }
             
-            // Active sessions info
-            Map<UUID, String> activeSessions = audioCaptureService.getActiveSessions();
-            player.sendMessage("§7[Voice AI] Total Active Sessions: §b" + activeSessions.size());
+            AudioCaptureService audioService = (AudioCaptureService) audioCaptureService;
+            Map<String, Object> status = audioService.getAudioMonitoringStatus();
             
-            boolean playerHasSession = activeSessions.containsKey(player.getUniqueId());
-            player.sendMessage("§7[Voice AI] Your Session Status: " + (playerHasSession ? "§aActive" : "§cInactive"));
+            StringBuilder statusMsg = new StringBuilder();
+            statusMsg.append("§b=== 실시간 마이크 상태 ===\n");
+            statusMsg.append("§7서비스 상태: ").append(getServiceStatusColor(audioService.getState())).append(audioService.getState()).append("\n");
+            statusMsg.append("§7현재 볼륨 레벨: §a").append(status.get("volume_level")).append("%\n");
+            statusMsg.append("§7음성 활동 감지: ").append((Boolean) status.get("voice_detected") ? "§a✓ 활성" : "§c✗ 비활성").append("\n");
+            statusMsg.append("§7총 오디오 프레임: §e").append(status.get("total_frames")).append("\n");
+            statusMsg.append("§7음성 활동 비율: §e").append(String.format("%.1f%%", status.get("voice_activity_percentage"))).append("\n");
+            statusMsg.append("§7평균 볼륨: §e").append(String.format("%.2f", status.get("average_volume"))).append("\n");
+            statusMsg.append("§7활성 세션: §e").append(status.get("active_sessions")).append("개\n");
             
             // Audio format info
-            player.sendMessage("§7[Voice AI] Audio Format: §b" + audioCaptureService.getAudioFormatInfo());
+            statusMsg.append("§7오디오 포맷: §e").append(audioService.getAudioFormatInfo());
             
-            // Service metrics
-            Map<String, Object> metrics = audioCaptureService.getMetrics();
-            if (metrics != null && !metrics.isEmpty()) {
-                player.sendMessage("§7[Voice AI] Service Metrics:");
-                for (Map.Entry<String, Object> entry : metrics.entrySet()) {
-                    player.sendMessage("§7  - " + entry.getKey() + ": §b" + entry.getValue());
-                }
-            }
+            sender.sendMessage(statusMsg.toString());
             
-            player.sendMessage("§a[Voice AI] ==============================");
-            
-            return CommandManager.CommandResult.success("Microphone status displayed.");
+            return CommandManager.CommandResult.success("마이크 상태 조회 완료");
             
         } catch (Exception e) {
-            logger.severe("Error getting microphone status: " + e.getMessage());
-            return CommandManager.CommandResult.error("Error getting microphone status: " + e.getMessage());
+            logger.warning("마이크 상태 조회 중 오류: " + e.getMessage());
+            return CommandManager.CommandResult.error("마이크 상태 조회 실패: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Start periodic status updates for microphone test
+     */
+    private void startPeriodicStatusUpdates(Player player, AudioCaptureService audioService) {
+        UUID playerId = player.getUniqueId();
+        
+        // Cancel any existing task for this player
+        stopPeriodicStatusUpdates(player);
+        
+        // Schedule periodic updates every 3 seconds
+        BukkitTask task = plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    // Check if player is still being monitored
+                    if (!player.isOnline() || audioService.getState() != Service.State.RUNNING || 
+                        !audioService.isPlayerBeingMonitored(player)) {
+                        stopPeriodicStatusUpdates(player);
+                        return;
+                    }
+                    
+                    Map<String, Object> status = audioService.getAudioMonitoringStatus();
+                    
+                    // Create volume bar visualization
+                    int volumeLevel = (Integer) status.get("volume_level");
+                    String volumeBar = createVolumeBar(volumeLevel);
+                    
+                    // Send real-time update
+                    player.sendMessage(String.format("§7[실시간] 볼륨: %s §7(%d%%) | 음성: %s", 
+                                                   volumeBar, 
+                                                   volumeLevel,
+                                                   (Boolean) status.get("voice_detected") ? "§a감지" : "§8무음"));
+                    
+                } catch (Exception e) {
+                    // If there's an error, stop the task
+                    logger.warning("Error in periodic status update: " + e.getMessage());
+                    stopPeriodicStatusUpdates(player);
+                }
+            }
+        }, 60L, 60L); // Start after 3 seconds, repeat every 3 seconds
+        
+        // Store the task for later cancellation
+        periodicUpdateTasks.put(playerId, task);
+    }
+    
+    /**
+     * Stop periodic status updates
+     */
+    private void stopPeriodicStatusUpdates(Player player) {
+        UUID playerId = player.getUniqueId();
+        BukkitTask task = periodicUpdateTasks.remove(playerId);
+        
+        if (task != null && !task.isCancelled()) {
+            task.cancel();
+            logger.info("Cancelled periodic status updates for player: " + player.getName());
+        }
+    }
+    
+    /**
+     * Create visual volume bar
+     */
+    private String createVolumeBar(int volumeLevel) {
+        int bars = volumeLevel / 10; // 0-10 bars
+        StringBuilder volumeBar = new StringBuilder("§8[");
+        
+        for (int i = 0; i < 10; i++) {
+            if (i < bars) {
+                if (i < 3) volumeBar.append("§a|"); // Green for low
+                else if (i < 7) volumeBar.append("§e|"); // Yellow for medium  
+                else volumeBar.append("§c|"); // Red for high
+            } else {
+                volumeBar.append("§8|");
+            }
+        }
+        
+        volumeBar.append("§8]");
+        return volumeBar.toString();
+    }
+    
+    /**
+     * Get appropriate color for service state
+     */
+    private String getServiceStatusColor(Service.State state) {
+        switch (state) {
+            case RUNNING: return "§a";
+            case STARTING: return "§e"; 
+            case STOPPING: return "§6";
+            case STOPPED: return "§c";
+            case FAILED: return "§4";
+            default: return "§7";
         }
     }
     
@@ -859,9 +944,21 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
      */
     public void cleanup() {
         commandCooldowns.clear();
+        
+        // Cancel all periodic update tasks
+        int cancelledTasks = 0;
+        for (BukkitTask task : periodicUpdateTasks.values()) {
+            if (task != null && !task.isCancelled()) {
+                task.cancel();
+                cancelledTasks++;
+            }
+        }
+        periodicUpdateTasks.clear();
+        
         if (commandManager != null) {
             commandManager.shutdown();
         }
-        logger.info("CommandHandler cleanup completed");
+        
+        logger.info("CommandHandler cleanup completed - cancelled " + cancelledTasks + " periodic tasks");
     }
 } 
