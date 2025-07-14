@@ -25,6 +25,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.DataLine;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.TargetDataLine;
 
 /**
  * AudioCaptureService captures and processes audio input from players
@@ -56,6 +61,12 @@ public class AudioCaptureService implements Service {
     
     // Player-specific monitoring control
     private final Set<UUID> monitoringPlayers = ConcurrentHashMap.newKeySet();
+    
+    // Real microphone capture components
+    private TargetDataLine microphone;
+    private AudioFormat audioFormat;
+    private Future<?> microphoneCaptureTask;
+    private volatile boolean isMicrophoneCapturing = false;
     
     // Service state
     private boolean isRunning = false;
@@ -531,6 +542,23 @@ public class AudioCaptureService implements Service {
         voiceActivityDetected.set(false);
         recentVolumeHistory.clear();
         
+        // Initialize and start real microphone capture
+        try {
+            if (initializeMicrophone()) {
+                startMicrophoneCapture(player);
+                player.sendMessage("§a[Audio Test] 마이크가 성공적으로 연결되었습니다!");
+            } else {
+                player.sendMessage("§c[Audio Test] 마이크 연결에 실패했습니다. 마이크를 확인해주세요.");
+                monitoringPlayers.remove(playerId);
+                return;
+            }
+        } catch (Exception e) {
+            logger.warning("Failed to initialize microphone: " + e.getMessage());
+            player.sendMessage("§c[Audio Test] 마이크 초기화 실패: " + e.getMessage());
+            monitoringPlayers.remove(playerId);
+            return;
+        }
+        
         // Start capture session for this player
         startCaptureSession(player);
         
@@ -553,6 +581,9 @@ public class AudioCaptureService implements Service {
         UUID playerId = player.getUniqueId();
         monitoringPlayers.remove(playerId);
         
+        // Stop real microphone capture
+        stopMicrophoneCapture();
+        
         stopCaptureSession(player);
         
         // If no players are being monitored, stop the volume monitor task
@@ -561,6 +592,7 @@ public class AudioCaptureService implements Service {
         }
         
         player.sendMessage("§e[Audio Test] 마이크 모니터링이 중지되었습니다.");
+        player.sendMessage("§7[Audio Test] 마이크 연결이 해제되었습니다.");
         
         // Show final statistics
         showAudioStatistics(player);
@@ -720,5 +752,153 @@ public class AudioCaptureService implements Service {
         } else {
             player.sendMessage("§c✗ 마이크 입력이 감지되지 않았습니다. 마이크 설정을 확인해주세요.");
         }
+    }
+    
+    /**
+     * Initialize microphone for audio capture
+     */
+    private boolean initializeMicrophone() {
+        try {
+            // Configure audio format (16kHz, 16-bit, mono)
+            audioFormat = new AudioFormat(
+                AUDIO_SAMPLE_RATE,    // Sample rate
+                AUDIO_BITS_PER_SAMPLE, // Sample size in bits
+                AUDIO_CHANNELS,       // Channels (1 = mono)
+                true,                 // Signed
+                false                 // Big endian
+            );
+            
+            // Get microphone line
+            DataLine.Info info = new DataLine.Info(TargetDataLine.class, audioFormat);
+            
+            if (!AudioSystem.isLineSupported(info)) {
+                logger.warning("Audio line not supported: " + audioFormat);
+                return false;
+            }
+            
+            microphone = (TargetDataLine) AudioSystem.getLine(info);
+            microphone.open(audioFormat, BUFFER_SIZE);
+            
+            logger.info("Microphone initialized successfully");
+            logger.info("Audio format: " + audioFormat);
+            logger.info("Buffer size: " + BUFFER_SIZE + " bytes");
+            
+            return true;
+            
+        } catch (LineUnavailableException e) {
+            logger.warning("Microphone unavailable: " + e.getMessage());
+            return false;
+        } catch (Exception e) {
+            logger.warning("Failed to initialize microphone: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Start capturing audio from microphone
+     */
+    private void startMicrophoneCapture(Player player) {
+        if (microphone == null) {
+            logger.warning("Cannot start microphone capture - microphone not initialized");
+            return;
+        }
+        
+        try {
+            microphone.start();
+            isMicrophoneCapturing = true;
+            
+            // Start capture task
+            microphoneCaptureTask = audioProcessor.submit(() -> captureMicrophoneData(player));
+            
+            logger.info("Microphone capture started for player: " + player.getName());
+            
+        } catch (Exception e) {
+            logger.warning("Failed to start microphone capture: " + e.getMessage());
+            isMicrophoneCapturing = false;
+        }
+    }
+    
+    /**
+     * Stop microphone capture
+     */
+    private void stopMicrophoneCapture() {
+        isMicrophoneCapturing = false;
+        
+        if (microphoneCaptureTask != null) {
+            microphoneCaptureTask.cancel(true);
+        }
+        
+        if (microphone != null) {
+            microphone.stop();
+            microphone.close();
+            microphone = null;
+        }
+        
+        logger.info("Microphone capture stopped");
+    }
+    
+    /**
+     * Continuously capture audio data from microphone
+     */
+    private void captureMicrophoneData(Player player) {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        UUID playerId = player.getUniqueId();
+        
+        logger.info("Starting real-time microphone data capture");
+        
+        while (isMicrophoneCapturing && microphone != null && microphone.isOpen()) {
+            try {
+                // Read audio data from microphone
+                int bytesRead = microphone.read(buffer, 0, buffer.length);
+                
+                if (bytesRead > 0) {
+                    // Create a copy of the actual data read
+                    byte[] audioData = new byte[bytesRead];
+                    System.arraycopy(buffer, 0, audioData, 0, bytesRead);
+                    
+                    // Process the audio data
+                    processAudioData(player, audioData);
+                    
+                    // Add to audio queue for analysis
+                    audioQueue.offer(new AudioData(playerId, audioData));
+                }
+                
+                // Small delay to prevent excessive CPU usage
+                Thread.sleep(10);
+                
+            } catch (InterruptedException e) {
+                logger.info("Microphone capture interrupted");
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                logger.warning("Error capturing microphone data: " + e.getMessage());
+                break;
+            }
+        }
+        
+        logger.info("Microphone data capture ended");
+    }
+    
+    /**
+     * Get microphone status information
+     */
+    public Map<String, Object> getMicrophoneStatus() {
+        Map<String, Object> status = new HashMap<>();
+        
+        status.put("microphone_initialized", microphone != null);
+        status.put("microphone_open", microphone != null && microphone.isOpen());
+        status.put("microphone_active", microphone != null && microphone.isActive());
+        status.put("capturing", isMicrophoneCapturing);
+        status.put("audio_format", audioFormat != null ? audioFormat.toString() : "Not set");
+        status.put("buffer_size", BUFFER_SIZE);
+        status.put("sample_rate", AUDIO_SAMPLE_RATE);
+        status.put("channels", AUDIO_CHANNELS);
+        status.put("bits_per_sample", AUDIO_BITS_PER_SAMPLE);
+        
+        if (microphone != null) {
+            status.put("microphone_info", microphone.getLineInfo().toString());
+        }
+        
+        return status;
     }
 } 

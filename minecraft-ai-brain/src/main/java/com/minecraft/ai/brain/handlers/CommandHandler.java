@@ -689,19 +689,35 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             
             AudioCaptureService audioService = (AudioCaptureService) audioCaptureService;
             Map<String, Object> status = audioService.getAudioMonitoringStatus();
+            Map<String, Object> micStatus = audioService.getMicrophoneStatus();
             
             StringBuilder statusMsg = new StringBuilder();
             statusMsg.append("§b=== 실시간 마이크 상태 ===\n");
+            
+            // Microphone hardware status
+            statusMsg.append("§a=== 마이크 하드웨어 상태 ===\n");
+            statusMsg.append("§7마이크 초기화됨: ").append((Boolean) micStatus.get("microphone_initialized") ? "§a✓" : "§c✗").append("\n");
+            statusMsg.append("§7마이크 열림: ").append((Boolean) micStatus.get("microphone_open") ? "§a✓" : "§c✗").append("\n");
+            statusMsg.append("§7마이크 활성: ").append((Boolean) micStatus.get("microphone_active") ? "§a✓" : "§c✗").append("\n");
+            statusMsg.append("§7캡처 중: ").append((Boolean) micStatus.get("capturing") ? "§a✓" : "§c✗").append("\n");
+            statusMsg.append("§7샘플 레이트: §e").append(micStatus.get("sample_rate")).append(" Hz\n");
+            statusMsg.append("§7채널: §e").append(micStatus.get("channels")).append(" (모노)\n");
+            statusMsg.append("§7비트 깊이: §e").append(micStatus.get("bits_per_sample")).append(" bit\n");
+            statusMsg.append("§7버퍼 크기: §e").append(micStatus.get("buffer_size")).append(" bytes\n");
+            
+            if (micStatus.containsKey("microphone_info")) {
+                statusMsg.append("§7마이크 정보: §e").append(micStatus.get("microphone_info")).append("\n");
+            }
+            
+            // Audio monitoring status  
+            statusMsg.append("\n§6=== 오디오 모니터링 상태 ===\n");
             statusMsg.append("§7서비스 상태: ").append(getServiceStatusColor(audioService.getState())).append(audioService.getState()).append("\n");
             statusMsg.append("§7현재 볼륨 레벨: §a").append(status.get("volume_level")).append("%\n");
             statusMsg.append("§7음성 활동 감지: ").append((Boolean) status.get("voice_detected") ? "§a✓ 활성" : "§c✗ 비활성").append("\n");
             statusMsg.append("§7총 오디오 프레임: §e").append(status.get("total_frames")).append("\n");
             statusMsg.append("§7음성 활동 비율: §e").append(String.format("%.1f%%", status.get("voice_activity_percentage"))).append("\n");
             statusMsg.append("§7평균 볼륨: §e").append(String.format("%.2f", status.get("average_volume"))).append("\n");
-            statusMsg.append("§7활성 세션: §e").append(status.get("active_sessions")).append("개\n");
-            
-            // Audio format info
-            statusMsg.append("§7오디오 포맷: §e").append(audioService.getAudioFormatInfo());
+            statusMsg.append("§7활성 세션: §e").append(status.get("active_sessions")).append("개");
             
             sender.sendMessage(statusMsg.toString());
             
