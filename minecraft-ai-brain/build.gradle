@@ -32,6 +32,9 @@ dependencies {
     // Google Cloud Speech-to-Text API
     implementation 'com.google.cloud:google-cloud-speech:4.56.0'
     
+    // Google Cloud Text-to-Speech API
+    implementation 'com.google.cloud:google-cloud-texttospeech:2.32.0'
+    
     // Testing
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
