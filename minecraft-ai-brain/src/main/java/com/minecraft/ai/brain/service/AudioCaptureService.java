@@ -599,15 +599,42 @@ public class AudioCaptureService implements Service {
         try {
             logger.info("Processing recognized speech from " + player.getName() + ": " + recognizedText);
             
-            // Check if this is a command (starts with !)
+            // 음성 명령어 트리거 키워드들 (대소문자 구분 없음)
+            String lowerText = recognizedText.toLowerCase().trim();
+            
+            // 다양한 음성 명령어 시작 키워드들
+            String[] commandTriggers = {
+                "명령어", "커맨드", "command", "실행", "마인크래프트"
+            };
+            
+            boolean isCommand = false;
+            String commandText = recognizedText;
+            
+            for (String trigger : commandTriggers) {
+                if (lowerText.startsWith(trigger.toLowerCase())) {
+                    isCommand = true;
+                    // 트리거 키워드 제거하고 실제 명령어 부분만 추출
+                    commandText = recognizedText.substring(trigger.length()).trim();
+                    break;
+                }
+            }
+            
+            // 기존 "!" 시작도 여전히 지원 (텍스트 명령어용)
             if (recognizedText.startsWith("!")) {
-                player.sendMessage("§b[Voice Command] " + recognizedText);
+                isCommand = true;
+                commandText = recognizedText;
+            }
+            
+            if (isCommand) {
+                player.sendMessage("§b[Voice Command] " + commandText);
+                logger.info("Voice command detected: " + commandText);
                 // TODO: Process voice commands
                 return;
             }
             
             // Send to AI conversation system
             player.sendMessage("§b[AI Conversation] " + recognizedText);
+            logger.info("Sending to AI conversation: " + recognizedText);
             // TODO: Send to AI conversation system
             
         } catch (Exception e) {
