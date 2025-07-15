@@ -114,23 +114,30 @@ public class TTSConfig {
             return false;
         }
         
-        File credFile = new File(credentialsPath);
+        // Get the actual path (with plugin folder conversion if needed)
+        String actualPath = getCredentialsPath();
+        File credFile = new File(actualPath);
+        
+        if (loggerInstance != null) {
+            loggerInstance.info(LOG_PREFIX + "Testing credentials file at: " + actualPath);
+        }
+        
         if (!credFile.exists()) {
             if (loggerInstance != null) {
-                loggerInstance.warning(LOG_PREFIX + "TTS credentials file not found: " + credentialsPath);
+                loggerInstance.warning(LOG_PREFIX + "TTS credentials file not found: " + actualPath);
             }
             return false;
         }
         
         if (!credFile.canRead()) {
             if (loggerInstance != null) {
-                loggerInstance.warning(LOG_PREFIX + "TTS credentials file is not readable: " + credentialsPath);
+                loggerInstance.warning(LOG_PREFIX + "TTS credentials file is not readable: " + actualPath);
             }
             return false;
         }
         
         if (loggerInstance != null) {
-            loggerInstance.info(LOG_PREFIX + "TTS credentials file validation successful");
+            loggerInstance.info(LOG_PREFIX + "TTS credentials file validation successful: " + actualPath);
         }
         return true;
     }

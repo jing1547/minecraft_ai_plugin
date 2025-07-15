@@ -6,6 +6,9 @@ import org.bukkit.entity.Player;
 import com.google.cloud.texttospeech.v1.*;
 import com.google.protobuf.ByteString;
 import java.io.IOException;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.api.gax.core.FixedCredentialsProvider;
+import java.io.FileInputStream;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -324,18 +327,30 @@ public class TextToSpeechService implements Service {
                     throw new IOException("Cannot read Google Cloud credentials file: " + credentialsPath);
                 }
                 
-                System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
-                logger.info(LOG_PREFIX + "Using credentials file: " + credentialsPath);
+                logger.info(LOG_PREFIX + "Loading credentials from: " + credentialsPath);
+                
+                // Use GoogleCredentials like STT does
+                com.google.auth.oauth2.GoogleCredentials credentials = 
+                    com.google.auth.oauth2.GoogleCredentials.fromStream(
+                        new java.io.FileInputStream(credentialsPath)
+                    );
+                
+                // Create TTS client with credentials
+                TextToSpeechSettings settings = TextToSpeechSettings.newBuilder()
+                    .setCredentialsProvider(com.google.api.gax.core.FixedCredentialsProvider.create(credentials))
+                    .build();
+                    
+                ttsClient = TextToSpeechClient.create(settings);
+                logger.info(LOG_PREFIX + "Google Cloud TTS client initialized successfully with credentials");
             } else {
-                logger.warning(LOG_PREFIX + "No credentials path configured, will try default authentication");
+                logger.warning(LOG_PREFIX + "No credentials path configured, trying default authentication");
+                // Create TTS client with default credentials
+                ttsClient = TextToSpeechClient.create();
             }
-            
-            // Create TTS client
-            ttsClient = TextToSpeechClient.create();
-            logger.info(LOG_PREFIX + "Google Cloud TTS client initialized successfully");
             
         } catch (IOException e) {
             logger.severe(LOG_PREFIX + "Failed to initialize TTS client: " + e.getMessage());
+            e.printStackTrace();
             throw e;
         }
     }

@@ -129,8 +129,14 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
         this.serviceManager = new ServiceManager(this);
         
         // Initialize TTS and STT configurations before service registration
+        pluginLogger.info("Initializing TTS configuration...");
         TTSConfig.initialize(this, configManager);
+        pluginLogger.info("TTS Config Summary: " + TTSConfig.getConfigurationSummary());
+        pluginLogger.info("TTS Credentials test result: " + TTSConfig.testCredentialsFile());
+        
+        pluginLogger.info("Initializing STT configuration...");
         SpeechToTextConfig.setConfigManager(configManager);
+        pluginLogger.info("STT Config Summary: " + SpeechToTextConfig.getConfigurationSummary());
         
         // Register all services
         serviceManager.registerService(new TextToSpeechService(this));
