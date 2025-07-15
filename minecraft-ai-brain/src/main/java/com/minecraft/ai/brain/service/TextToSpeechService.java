@@ -385,11 +385,13 @@ public class TextToSpeechService implements Service {
      */
     private void initializeEmotionMappings() {
         // Voice mappings (Korean Neural voices)
+        // Note: Korean Neural2 voices: A, B are female; C, D are male
         emotionVoiceMapping.put("happy", "ko-KR-Neural2-B");      // Bright female voice
-        emotionVoiceMapping.put("sad", "ko-KR-Neural2-D");        // Deeper male voice
-        emotionVoiceMapping.put("angry", "ko-KR-Neural2-A");      // Forceful male voice
-        emotionVoiceMapping.put("fearful", "ko-KR-Neural2-C");    // Neutral voice
+        emotionVoiceMapping.put("sad", "ko-KR-Neural2-A");        // Softer female voice
+        emotionVoiceMapping.put("angry", "ko-KR-Neural2-D");      // Forceful male voice
+        emotionVoiceMapping.put("fearful", "ko-KR-Neural2-C");    // Male voice
         emotionVoiceMapping.put("excited", "ko-KR-Neural2-B");    // Energetic female voice
+        emotionVoiceMapping.put("neutral", defaultVoiceName);     // Default voice (C is male)
         
         // Pitch adjustments (semitones)
         emotionPitchMapping.put("happy", 4.0);
@@ -848,7 +850,7 @@ public class TextToSpeechService implements Service {
     
     /**
      * Get voice gender based on voice name
-     * Korean Neural2 voices: A, B, C are female; D is male
+     * Korean Neural2 voices: A, B are female; C, D are male
      */
     private SsmlVoiceGender getVoiceGender(String voiceName) {
         if (voiceName == null || voiceName.isEmpty()) {
@@ -861,11 +863,11 @@ public class TextToSpeechService implements Service {
         // Korean Neural2 voice gender mapping
         if (voiceName.contains("ko-KR-Neural2-")) {
             switch (lastChar) {
+                case 'C':
                 case 'D':
                     return SsmlVoiceGender.MALE;
                 case 'A':
                 case 'B':
-                case 'C':
                 default:
                     return SsmlVoiceGender.FEMALE;
             }
