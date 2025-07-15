@@ -186,16 +186,24 @@ public class TextToSpeechService implements Service {
             }
             
             // Initialize Google Cloud TTS client
-            initializeTTSClient();
-            
-            // Initialize advanced caching and rate limiting
-            cacheManager = new TTSCacheManager(this, 200, 3600000L); // 200 items, 1 hour expiry
-            rateLimiter = APIRateLimiter.forGoogleCloudTTS(); // 600 requests per minute
-            errorHandler = new TTSErrorHandler();
-            queueManager = new TTSQueueManager(this, audioPlayerService);
-            
-            currentHealth = ServiceHealth.healthy("TTS service initialized successfully");
-            logger.info(LOG_PREFIX + "TextToSpeech service initialized successfully");
+            try {
+                initializeTTSClient();
+                
+                // Initialize advanced caching and rate limiting
+                cacheManager = new TTSCacheManager(this, 200, 3600000L); // 200 items, 1 hour expiry
+                rateLimiter = APIRateLimiter.forGoogleCloudTTS(); // 600 requests per minute
+                errorHandler = new TTSErrorHandler();
+                queueManager = new TTSQueueManager(this, audioPlayerService);
+                
+                currentHealth = ServiceHealth.healthy("TTS service initialized successfully");
+                logger.info(LOG_PREFIX + "TextToSpeech service initialized successfully");
+            } catch (IOException e) {
+                // Handle credential errors gracefully
+                logger.severe(LOG_PREFIX + "Failed to initialize Google Cloud TTS client: " + e.getMessage());
+                currentHealth = ServiceHealth.unhealthy("TTS client initialization failed: " + e.getMessage());
+                // Don't throw exception here to allow service to be in INITIALIZED state
+                // The error will be caught in start() method
+            }
             
         } catch (Exception e) {
             currentState = State.FAILED;
@@ -213,6 +221,22 @@ public class TextToSpeechService implements Service {
         
         if (currentState == State.RUNNING) {
             return;
+        }
+        
+        // Check if TTS is enabled
+        if (!TTSConfig.isEnabled()) {
+            logger.warning(LOG_PREFIX + "TTS is disabled in configuration, not starting service");
+            currentState = State.STOPPED;
+            currentHealth = ServiceHealth.degraded("TTS disabled in configuration");
+            return;
+        }
+        
+        // Check if TTS client was initialized
+        if (ttsClient == null) {
+            currentState = State.FAILED;
+            currentHealth = ServiceHealth.unhealthy("TTS client not initialized - check credentials");
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.STARTUP_FAILED, 
+                "TTS client not initialized. Please check Google Cloud credentials file.");
         }
         
         try {
@@ -235,8 +259,10 @@ public class TextToSpeechService implements Service {
         } catch (Exception e) {
             currentState = State.FAILED;
             currentHealth = ServiceHealth.unhealthy("Start failed: " + e.getMessage());
+            logger.severe(LOG_PREFIX + "Failed to start TTS service: " + e.getMessage());
+            e.printStackTrace();
             throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.STARTUP_FAILED, 
-                "Failed to start TextToSpeech service", e);
+                "Failed to start TextToSpeech service: " + e.getMessage(), e);
         }
     }
     
@@ -286,7 +312,20 @@ public class TextToSpeechService implements Service {
             // Set credentials from config
             String credentialsPath = TTSConfig.getCredentialsPath();
             if (credentialsPath != null && !credentialsPath.isEmpty()) {
+                // Check if credentials file exists
+                java.io.File credFile = new java.io.File(credentialsPath);
+                if (!credFile.exists()) {
+                    logger.severe(LOG_PREFIX + "Credentials file not found: " + credentialsPath);
+                    throw new IOException("Google Cloud credentials file not found: " + credentialsPath);
+                }
+                if (!credFile.canRead()) {
+                    logger.severe(LOG_PREFIX + "Cannot read credentials file: " + credentialsPath);
+                    throw new IOException("Cannot read Google Cloud credentials file: " + credentialsPath);
+                }
                 System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
+                logger.info(LOG_PREFIX + "Using credentials file: " + credentialsPath);
+            } else {
+                logger.warning(LOG_PREFIX + "No credentials path configured, will try default authentication");
             }
             
             // Create TTS client
