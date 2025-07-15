@@ -548,7 +548,7 @@ public class TextToSpeechService implements Service {
             
             // Use advanced cache manager with SSML text as key
             if (cacheManager != null) {
-                return cacheManager.getAudio(ssmlText, emotion != null ? emotion : "neutral");
+                return cacheManager.getSSMLAudio(ssmlText, emotion != null ? emotion : "neutral");
             } else {
                 // Fallback to direct synthesis if cache manager is not available
                 return synthesizeSSMLDirectly(ssmlText, emotion);
@@ -779,7 +779,7 @@ public class TextToSpeechService implements Service {
             
             // 3. Use advanced cache manager with processed SSML text
             if (cacheManager != null) {
-                return cacheManager.getAudio(ssmlText, emotion != null ? emotion : "neutral");
+                return cacheManager.getSSMLAudio(ssmlText, emotion != null ? emotion : "neutral");
             } else {
                 // Fallback to direct synthesis if cache manager is not available
                 return synthesizeAdvancedKoreanDirectly(ssmlText, emotion);

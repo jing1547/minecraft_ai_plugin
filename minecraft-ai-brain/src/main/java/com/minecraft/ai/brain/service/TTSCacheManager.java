@@ -128,7 +128,7 @@ public class TTSCacheManager {
         
         byte[] audioData;
         try {
-            audioData = ttsService.synthesizeSpeech(text, emotion != null ? emotion : "neutral");
+            audioData = ttsService.synthesizeDirectly(text, emotion != null ? emotion : "neutral");
         } catch (Exception e) {
             logger.severe("[TTSCacheManager] Failed to generate audio: " + e.getMessage());
             throw new RuntimeException("Failed to generate audio for text: " + text, e);
@@ -145,6 +145,50 @@ public class TTSCacheManager {
      */
     public byte[] getAudio(String text) {
         return getAudio(text, "neutral");
+    }
+    
+    /**
+     * Get audio data for SSML text
+     * This method is specifically for SSML-formatted text to avoid confusion with regular text
+     */
+    public byte[] getSSMLAudio(String ssmlText, String emotion) {
+        if (ssmlText == null || ssmlText.trim().isEmpty()) {
+            throw new IllegalArgumentException("SSML text cannot be null or empty");
+        }
+        
+        // Create cache key with SSML prefix to distinguish from regular text
+        String cacheKey = "SSML:" + generateCacheKey(ssmlText, emotion);
+        
+        lock.readLock().lock();
+        try {
+            // Check if in cache and not expired
+            CacheEntry entry = audioCache.get(cacheKey);
+            if (entry != null && !entry.isExpired(maxCacheAgeMs)) {
+                cacheHits.incrementAndGet();
+                updateAccessTime(cacheKey);
+                logger.info("[TTSCacheManager] Cache HIT for SSML key: " + cacheKey.substring(0, Math.min(50, cacheKey.length())) + "...");
+                return entry.getAudioData();
+            }
+        } finally {
+            lock.readLock().unlock();
+        }
+        
+        // Cache miss - generate new audio
+        cacheMisses.incrementAndGet();
+        logger.warning("[TTSCacheManager] Cache MISS for SSML key: " + cacheKey.substring(0, Math.min(50, cacheKey.length())) + "...");
+        
+        byte[] audioData;
+        try {
+            audioData = ttsService.synthesizeSSMLDirectly(ssmlText, emotion != null ? emotion : "neutral");
+        } catch (Exception e) {
+            logger.severe("[TTSCacheManager] Failed to generate SSML audio: " + e.getMessage());
+            throw new RuntimeException("Failed to generate SSML audio", e);
+        }
+        
+        // Add to cache
+        addToCache(cacheKey, audioData, emotion != null ? emotion : "neutral", ssmlText);
+        
+        return audioData;
     }
     
     /**
