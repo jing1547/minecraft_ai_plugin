@@ -634,7 +634,10 @@ public class TextToSpeechService implements Service {
             double pitch = getEmotionPitch(emotion);
             double rate = getEmotionRate(emotion);
             
-            String pitchStr = pitch >= 0 ? "+" + (int)pitch + "st" : (int)pitch + "st";
+            // Neural2 voices require pitch as percentage or Hz, not semitones
+            // Convert semitones to percentage: +1st ≈ +5.9%, -1st ≈ -5.6%
+            double pitchPercent = pitch * 5.9;
+            String pitchStr = pitchPercent >= 0 ? "+" + String.format("%.1f", pitchPercent) + "%" : String.format("%.1f", pitchPercent) + "%";
             
             switch (emotion.toLowerCase()) {
                 case "happy":
@@ -709,28 +712,10 @@ public class TextToSpeechService implements Service {
      * Apply Korean pronunciation dictionary for gaming terms and common expressions
      */
     private String applyKoreanPronunciationDictionary(String text) {
-        // Korean pronunciation dictionary for gaming terms
-        Map<String, String> pronunciationDict = new HashMap<>();
-        
-        // Gaming terms
-        pronunciationDict.put("마인크래프트", "<phoneme alphabet=\"ipa\" ph=\"maɪnkɯɾæpɯtɯ\">마인크래프트</phoneme>");
-        pronunciationDict.put("인벤토리", "<phoneme alphabet=\"ipa\" ph=\"ɪnbentori\">인벤토리</phoneme>");
-        pronunciationDict.put("크리퍼", "<phoneme alphabet=\"ipa\" ph=\"kɯɾipʰʌ\">크리퍼</phoneme>");
-        pronunciationDict.put("엔더맨", "<phoneme alphabet=\"ipa\" ph=\"endʌmæn\">엔더맨</phoneme>");
-        pronunciationDict.put("레드스톤", "<phoneme alphabet=\"ipa\" ph=\"ɾeɾɯstʰon\">레드스톤</phoneme>");
-        
-        // Common expressions with natural pronunciation
-        pronunciationDict.put("안녕하세요", "<phoneme alphabet=\"ipa\" ph=\"annjʌŋhasejo\">안녕하세요</phoneme>");
-        pronunciationDict.put("감사합니다", "<phoneme alphabet=\"ipa\" ph=\"kamsahamnida\">감사합니다</phoneme>");
-        pronunciationDict.put("죄송합니다", "<phoneme alphabet=\"ipa\" ph=\"tʃesɔŋhamnida\">죄송합니다</phoneme>");
-        
-        // Apply pronunciation corrections
-        String processedText = text;
-        for (Map.Entry<String, String> entry : pronunciationDict.entrySet()) {
-            processedText = processedText.replace(entry.getKey(), entry.getValue());
-        }
-        
-        return processedText;
+        // For Neural2 voices, avoid using phoneme tags as they might not be supported
+        // Instead, we'll just return the text as-is for now
+        // Neural2 voices have better built-in Korean pronunciation
+        return text;
     }
     
     /**
@@ -739,21 +724,8 @@ public class TextToSpeechService implements Service {
     private String applyKoreanIntonationPatterns(String text) {
         String processedText = text;
         
-        // Question patterns (의문문)
-        if (processedText.matches(".*[가-힣]*[니까까나요인가]\\?.*")) {
-            // Rising intonation for questions
-            processedText = "<prosody contour=\"(0%,+0st)(50%,+2st)(100%,+5st)\">" + processedText + "</prosody>";
-        }
-        // Exclamation patterns (감탄문)
-        else if (processedText.matches(".*[!].*")) {
-            // Emphatic intonation for exclamations
-            processedText = "<prosody contour=\"(0%,+2st)(30%,+4st)(70%,+3st)(100%,+0st)\">" + processedText + "</prosody>";
-        }
-        // Statement patterns with falling intonation (평서문)
-        else if (processedText.matches(".*[다요니다습니다][\\.]*$")) {
-            // Falling intonation for statements
-            processedText = "<prosody contour=\"(0%,+0st)(80%,+1st)(100%,-2st)\">" + processedText + "</prosody>";
-        }
+        // For Neural2 voices, avoid complex prosody contour as it may not be supported
+        // Neural2 voices handle Korean intonation patterns naturally
         
         return processedText;
     }
