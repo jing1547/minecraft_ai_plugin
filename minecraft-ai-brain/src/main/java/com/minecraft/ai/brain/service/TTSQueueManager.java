@@ -300,22 +300,22 @@ public class TTSQueueManager {
      * 만료된 요청 정리
      */
     private void cleanupExpiredRequests() {
-        int cleaned = 0;
+        final AtomicInteger cleaned = new AtomicInteger(0);
         
         // 큐에서 만료된 요청 제거
         requestQueue.removeIf(request -> {
             if (request.isExpired()) {
                 request.getFuture().complete(false);
                 decrementPlayerCount(request.getPlayerId());
-                cleaned++;
+                cleaned.incrementAndGet();
                 return true;
             }
             return false;
         });
         
-        if (cleaned > 0) {
-            logger.info("Cleaned up " + cleaned + " expired TTS requests");
-            droppedRequests.addAndGet(cleaned);
+        if (cleaned.get() > 0) {
+            logger.info("Cleaned up " + cleaned.get() + " expired TTS requests");
+            droppedRequests.addAndGet(cleaned.get());
         }
         
         // 비활성 플레이어 정리
@@ -378,12 +378,12 @@ public class TTSQueueManager {
      * 특정 플레이어의 요청 제거
      */
     public void clearPlayerRequests(UUID playerId) {
-        int removed = 0;
+        final AtomicInteger removed = new AtomicInteger(0);
         
         requestQueue.removeIf(request -> {
             if (request.getPlayerId().equals(playerId)) {
                 request.getFuture().complete(false);
-                removed++;
+                removed.incrementAndGet();
                 return true;
             }
             return false;
@@ -392,9 +392,9 @@ public class TTSQueueManager {
         playerRequestCounts.remove(playerId);
         playerLastRequestTime.remove(playerId);
         
-        if (removed > 0) {
-            droppedRequests.addAndGet(removed);
-            logger.info("Removed " + removed + " TTS requests for player: " + playerId);
+        if (removed.get() > 0) {
+            droppedRequests.addAndGet(removed.get());
+            logger.info("Removed " + removed.get() + " TTS requests for player: " + playerId);
         }
     }
 }
