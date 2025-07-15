@@ -499,10 +499,11 @@ public class TextToSpeechService implements Service {
                    (text.length() > 50 ? "..." : ""));
         
         // Build the voice request
+        String voiceName = getEmotionVoice(emotion);
         VoiceSelectionParams voice = VoiceSelectionParams.newBuilder()
             .setLanguageCode(defaultLanguageCode)
-            .setName(getEmotionVoice(emotion))
-            .setSsmlGender(SsmlVoiceGender.NEUTRAL)
+            .setName(voiceName)
+            .setSsmlGender(getVoiceGender(voiceName))
             .build();
         
         // Select the type of audio file
@@ -584,10 +585,11 @@ public class TextToSpeechService implements Service {
                        (emotion != null ? emotion : "default") + " emotion");
             
             // Build the voice request
+            String voiceName = getEmotionVoice(emotion);
             VoiceSelectionParams voice = VoiceSelectionParams.newBuilder()
                 .setLanguageCode(defaultLanguageCode)
-                .setName(getEmotionVoice(emotion))
-                .setSsmlGender(SsmlVoiceGender.NEUTRAL)
+                .setName(voiceName)
+                .setSsmlGender(getVoiceGender(voiceName))
                 .build();
             
             // Select the type of audio file
@@ -842,6 +844,35 @@ public class TextToSpeechService implements Service {
      */
     public double getEmotionPitch(String emotion) {
         return emotionPitchMapping.getOrDefault(emotion != null ? emotion.toLowerCase() : null, 0.0);
+    }
+    
+    /**
+     * Get voice gender based on voice name
+     * Korean Neural2 voices: A, B, C are female; D is male
+     */
+    private SsmlVoiceGender getVoiceGender(String voiceName) {
+        if (voiceName == null || voiceName.isEmpty()) {
+            return SsmlVoiceGender.FEMALE; // Default to female
+        }
+        
+        // Check the last character of the voice name
+        char lastChar = voiceName.charAt(voiceName.length() - 1);
+        
+        // Korean Neural2 voice gender mapping
+        if (voiceName.contains("ko-KR-Neural2-")) {
+            switch (lastChar) {
+                case 'D':
+                    return SsmlVoiceGender.MALE;
+                case 'A':
+                case 'B':
+                case 'C':
+                default:
+                    return SsmlVoiceGender.FEMALE;
+            }
+        }
+        
+        // Default to female for other voices
+        return SsmlVoiceGender.FEMALE;
     }
     
     /**
