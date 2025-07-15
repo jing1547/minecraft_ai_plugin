@@ -55,38 +55,49 @@ public class AudioCaptureService implements Service {
     
     // STT service integration
     private SpeechRecognitionService speechRecognitionService;
+    private STTSessionManager sttSessionManager;
     
-    // ✅ VAD (Voice Activity Detection) 관련 상수들로 교체
+    // ✅ VAD (Voice Activity Detection) 관련
     private final Map<UUID, VoiceSession> playerVoiceSessions = new ConcurrentHashMap<>();
-    private static final double VOICE_START_THRESHOLD = 0.02; // 음성 시작 임계값
-    private static final double VOICE_END_THRESHOLD = 0.01;   // 음성 종료 임계값  
-    private static final long VOICE_END_DELAY = 800;          // 음성 종료 후 대기 시간 (ms)
-    private static final long MIN_VOICE_DURATION = 300;       // 최소 음성 길이 (ms)
-    private static final long MAX_VOICE_DURATION = 10000;     // 최대 음성 길이 (ms)
+    private final Map<UUID, VoiceActivityDetector> playerVADs = new ConcurrentHashMap<>();
+    private static final long MIN_VOICE_DURATION = 500;       // 최소 음성 길이 (ms)
+    private static final long MAX_VOICE_DURATION = 15000;     // 최대 음성 길이 (ms)
+    private static final long SILENCE_TIMEOUT = 1500;         // 침묵 타임아웃 (ms)
+    private static final int VAD_FRAME_SIZE = 640;            // VAD 프레임 크기 (40ms at 16kHz)
     
     /**
      * 플레이어별 음성 세션 관리
      */
     private static class VoiceSession {
         private ByteArrayOutputStream audioBuffer;
+        private ByteArrayOutputStream vadBuffer; // VAD 분석용 버퍼
         private long recordingStartTime;
         private long lastVoiceActivityTime;
         private boolean isRecording;
-        private double currentVolumeLevel;
+        private boolean isVoiceDetected;
+        private int silenceFrameCount;
+        private int totalFrameCount;
         
         public VoiceSession() {
             this.audioBuffer = new ByteArrayOutputStream();
+            this.vadBuffer = new ByteArrayOutputStream();
             this.recordingStartTime = 0;
             this.lastVoiceActivityTime = 0;
             this.isRecording = false;
-            this.currentVolumeLevel = 0.0;
+            this.isVoiceDetected = false;
+            this.silenceFrameCount = 0;
+            this.totalFrameCount = 0;
         }
         
         public void startRecording() {
             audioBuffer.reset();
+            vadBuffer.reset();
             recordingStartTime = System.currentTimeMillis();
             lastVoiceActivityTime = recordingStartTime;
             isRecording = true;
+            isVoiceDetected = true;
+            silenceFrameCount = 0;
+            totalFrameCount = 0;
         }
         
         public void stopRecording() {
@@ -103,6 +114,24 @@ public class AudioCaptureService implements Service {
             }
         }
         
+        public void addVADData(byte[] data) {
+            try {
+                vadBuffer.write(data);
+            } catch (java.io.IOException e) {
+                // Handle silently
+            }
+        }
+        
+        public byte[] getVADData() {
+            byte[] data = vadBuffer.toByteArray();
+            vadBuffer.reset();
+            return data;
+        }
+        
+        public boolean hasVADData() {
+            return vadBuffer.size() >= VAD_FRAME_SIZE;
+        }
+        
         public byte[] getRecordedAudio() {
             return audioBuffer.toByteArray();
         }
@@ -112,8 +141,8 @@ public class AudioCaptureService implements Service {
         }
         
         public boolean shouldEndRecording(long currentTime) {
-            // 음성 활동이 일정 시간 없었거나, 최대 길이 초과시 종료
-            return (currentTime - lastVoiceActivityTime > VOICE_END_DELAY) || 
+            // 침묵이 일정 시간 지속되거나, 최대 길이 초과시 종료
+            return (currentTime - lastVoiceActivityTime > SILENCE_TIMEOUT) || 
                    (getRecordingDuration() > MAX_VOICE_DURATION);
         }
         
@@ -121,18 +150,25 @@ public class AudioCaptureService implements Service {
             return getRecordingDuration() >= MIN_VOICE_DURATION;
         }
         
-        public void updateVoiceActivity(double volumeLevel, long currentTime) {
-            this.currentVolumeLevel = volumeLevel;
-            if (volumeLevel > VOICE_END_THRESHOLD) {
+        public void updateVoiceActivity(boolean voiceDetected, long currentTime) {
+            totalFrameCount++;
+            
+            if (voiceDetected) {
                 this.lastVoiceActivityTime = currentTime;
+                this.isVoiceDetected = true;
+                this.silenceFrameCount = 0;
+            } else {
+                this.silenceFrameCount++;
             }
         }
         
         // Getters
         public boolean isRecording() { return isRecording; }
-        public double getCurrentVolumeLevel() { return currentVolumeLevel; }
+        public boolean isVoiceDetected() { return isVoiceDetected; }
         public long getLastVoiceActivityTime() { return lastVoiceActivityTime; }
         public long getRecordingStartTime() { return recordingStartTime; }
+        public int getSilenceFrameCount() { return silenceFrameCount; }
+        public int getTotalFrameCount() { return totalFrameCount; }
     }
     
     // Audio monitoring
@@ -266,10 +302,12 @@ public class AudioCaptureService implements Service {
             try {
                 logger.info("Initializing SpeechRecognitionService...");
                 speechRecognitionService = new SpeechRecognitionService();
+                sttSessionManager = new STTSessionManager();
                 logger.info("SpeechRecognitionService initialized successfully");
             } catch (Exception e) {
                 logger.severe("Failed to initialize SpeechRecognitionService: " + e.getMessage());
                 speechRecognitionService = null;
+                sttSessionManager = null;
                 // Continue without STT
             }
         } else {
@@ -386,6 +424,11 @@ public class AudioCaptureService implements Service {
     
     public void shutdown() {
         stop();
+        
+        // Shutdown STT session manager
+        if (sttSessionManager != null) {
+            sttSessionManager.shutdown();
+        }
         
         // Shutdown executor
         audioProcessor.shutdown();
@@ -509,6 +552,17 @@ public class AudioCaptureService implements Service {
     }
     
     /**
+     * Get STT session statistics
+     * @return Statistics map
+     */
+    public Map<String, Object> getSTTStatistics() {
+        if (sttSessionManager != null) {
+            return sttSessionManager.getStatistics();
+        }
+        return new HashMap<>();
+    }
+    
+    /**
      * Preprocess audio data (noise reduction, normalization)
      * @param audioData Raw audio data
      * @return Processed audio data
@@ -604,70 +658,93 @@ public class AudioCaptureService implements Service {
             return;
         }
 
+        // STT 세션 확인
+        if (sttSessionManager != null) {
+            var sttSession = sttSessionManager.getSession(playerId);
+            if (sttSession == null) {
+                // 세션이 없거나 일시 중지된 경우
+                sttSession = sttSessionManager.createSession(playerId);
+                if (sttSession == null) {
+                    logger.warning("Cannot create STT session for player " + player.getName() + " (suspended)");
+                    return;
+                }
+            }
+            sttSessionManager.updateSessionActivity(playerId);
+        }
+        
         try {
-            // 현재 오디오 프레임의 볼륨 계산
             byte[] audioBytes = audioData.getData();
-            double currentVolume = calculateRMS(audioBytes);
             long currentTime = System.currentTimeMillis();
             
-            // 플레이어별 음성 세션 가져오기 또는 생성
+            // 플레이어별 VAD와 세션 가져오기
+            VoiceActivityDetector vad = playerVADs.computeIfAbsent(playerId, k -> new VoiceActivityDetector());
             VoiceSession session = playerVoiceSessions.computeIfAbsent(playerId, k -> new VoiceSession());
             
-            // 음성 활동 업데이트
-            session.updateVoiceActivity(currentVolume, currentTime);
+            // VAD 버퍼에 데이터 추가
+            session.addVADData(audioBytes);
             
-            // 상태별 처리
-            if (!session.isRecording()) {
-                // 🎤 녹음 중이 아님 - 음성 시작 감지
-                if (currentVolume > VOICE_START_THRESHOLD) {
-                    // 음성 시작 감지!
-                    session.startRecording();
-                    session.addAudioData(audioBytes);
-                    
-                    logger.info("Voice recording STARTED for player: " + player.getName() + 
-                               " (volume: " + String.format("%.3f", currentVolume) + ")");
-                    
-                    // 플레이어에게 녹음 시작 알림
-                    org.bukkit.Bukkit.getScheduler().runTask(
-                        org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                        () -> player.sendMessage("§a[음성] 🎤 말씀해주세요...")
-                    );
-                }
-                // 음성 없으면 아무것도 안함 (조용히 대기)
+            // VAD 프레임 크기만큼 데이터가 모이면 분석
+            while (session.hasVADData()) {
+                byte[] vadFrame = session.getVADData();
                 
-            } else {
-                // 📼 녹음 중 - 오디오 데이터 누적 및 종료 조건 확인
-                session.addAudioData(audioBytes);
+                // VAD로 음성 활동 감지
+                boolean voiceDetected = vad.detectSpeech(vadFrame);
+                session.updateVoiceActivity(voiceDetected, currentTime);
                 
-                // 디버그용 주기적 상태 표시 (5초마다)
-                if (session.getRecordingDuration() % 5000 < 100) {
-                    logger.info("Recording in progress for " + player.getName() + 
-                               " - Duration: " + session.getRecordingDuration() + "ms, " +
-                               "Volume: " + String.format("%.3f", currentVolume));
-                }
-                
-                // 녹음 종료 조건 확인
-                if (session.shouldEndRecording(currentTime)) {
-                    // 음성 종료 감지!
-                    byte[] recordedAudio = session.getRecordedAudio();
-                    long duration = session.getRecordingDuration(); // 수정됨
-                    
-                    session.stopRecording();
-                    
-                    logger.info("Voice recording ENDED for player: " + player.getName() + 
-                               " - Duration: " + duration + "ms, Size: " + recordedAudio.length + " bytes");
-                    
-                    // 최소 길이 체크
-                    if (session.isMinimumDurationMet() && recordedAudio.length > 0) {
-                        // 🎯 STT 처리
-                        processRecordedVoice(player, recordedAudio, duration);
-                    } else {
-                        // 너무 짧은 녹음
-                        logger.info("Recording too short, ignored: " + duration + "ms");
+                // 상태별 처리
+                if (!session.isRecording()) {
+                    // 🎤 녹음 중이 아님 - 음성 시작 감지
+                    if (voiceDetected && vad.isInSpeechSegment()) {
+                        // 음성 시작 감지!
+                        session.startRecording();
+                        session.addAudioData(vadFrame);
+                        
+                        logger.info("Voice recording STARTED for player: " + player.getName() + 
+                                   " (SNR: " + String.format("%.2f", vad.getSignalToNoiseRatio()) + 
+                                   ", Noise: " + String.format("%.4f", vad.getBackgroundNoiseLevel()) + ")");
+                        
+                        // 플레이어에게 녹음 시작 알림
                         org.bukkit.Bukkit.getScheduler().runTask(
                             org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
-                            () -> player.sendMessage("§6[음성] 너무 짧게 말씀하셨습니다. 다시 시도해주세요.")
+                            () -> player.sendMessage("§a[음성] 🎤 말씀해주세요...")
                         );
+                    }
+                    
+                } else {
+                    // 📼 녹음 중 - 오디오 데이터 누적
+                    session.addAudioData(vadFrame);
+                    
+                    // 디버그용 주기적 상태 표시
+                    if (session.getTotalFrameCount() % 250 == 0) { // 약 5초마다
+                        logger.info("Recording in progress for " + player.getName() + 
+                                   " - Duration: " + session.getRecordingDuration() + "ms, " +
+                                   "VAD Status: " + vad.getVADStats());
+                    }
+                    
+                    // 녹음 종료 조건 확인
+                    if (!voiceDetected && !vad.isInSpeechSegment() && session.shouldEndRecording(currentTime)) {
+                        // 음성 종료 감지!
+                        byte[] recordedAudio = session.getRecordedAudio();
+                        long duration = session.getRecordingDuration();
+                        
+                        session.stopRecording();
+                        vad.reset(); // VAD 상태 리셋
+                        
+                        logger.info("Voice recording ENDED for player: " + player.getName() + 
+                                   " - Duration: " + duration + "ms, Size: " + recordedAudio.length + " bytes");
+                        
+                        // 최소 길이 체크
+                        if (session.isMinimumDurationMet() && recordedAudio.length > 0) {
+                            // 🎯 STT 처리
+                            processRecordedVoice(player, recordedAudio, duration);
+                        } else {
+                            // 너무 짧은 녹음
+                            logger.info("Recording too short, ignored: " + duration + "ms");
+                            org.bukkit.Bukkit.getScheduler().runTask(
+                                org.bukkit.Bukkit.getPluginManager().getPlugin("MinecraftAIBrain"),
+                                () -> player.sendMessage("§6[음성] 너무 짧게 말씀하셨습니다. 다시 시도해주세요.")
+                            );
+                        }
                     }
                 }
             }
@@ -675,6 +752,11 @@ public class AudioCaptureService implements Service {
         } catch (Exception e) {
             logger.severe("Error in VAD processing for player " + player.getName() + ": " + e.getMessage());
             e.printStackTrace();
+            
+            // 오류 기록
+            if (sttSessionManager != null) {
+                sttSessionManager.recordError(playerId, "VAD processing error: " + e.getMessage());
+            }
         }
     }
     
@@ -759,6 +841,11 @@ public class AudioCaptureService implements Service {
                 } catch (Exception e) {
                     logger.severe("STT processing error for player " + player.getName() + ": " + e.getMessage());
                     e.printStackTrace();
+                    
+                    // 오류 기록
+                    if (sttSessionManager != null) {
+                        sttSessionManager.recordError(player.getUniqueId(), "STT processing error: " + e.getMessage());
+                    }
                     
                     // 에러 메시지
                     org.bukkit.Bukkit.getScheduler().runTask(
@@ -982,8 +1069,9 @@ public class AudioCaptureService implements Service {
         UUID playerId = player.getUniqueId();
         monitoringPlayers.add(playerId);
         
-        // Initialize VAD session for this player
+        // Initialize VAD and session for this player
         playerVoiceSessions.put(playerId, new VoiceSession());
+        playerVADs.put(playerId, new VoiceActivityDetector());
         
         // Reset statistics for new monitoring session
         totalAudioFrames.set(0);
@@ -1031,8 +1119,9 @@ public class AudioCaptureService implements Service {
         UUID playerId = player.getUniqueId();
         monitoringPlayers.remove(playerId);
         
-        // Clean up VAD session for this player
+        // Clean up VAD and session for this player
         playerVoiceSessions.remove(playerId);
+        playerVADs.remove(playerId);
         
         // Stop real microphone capture
         stopMicrophoneCapture();

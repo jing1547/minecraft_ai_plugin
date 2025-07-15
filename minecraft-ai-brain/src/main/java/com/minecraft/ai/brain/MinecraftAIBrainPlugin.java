@@ -8,6 +8,7 @@ import com.minecraft.ai.brain.websocket.WebSocketServerManager;
 import com.minecraft.ai.brain.handlers.PlayerEventHandler;
 import com.minecraft.ai.brain.handlers.CommandHandler;
 import com.minecraft.ai.brain.commands.CloudTestCommand;
+import com.minecraft.ai.brain.commands.STTTestCommand;
 import com.minecraft.ai.brain.utils.ConfigManager;
 import com.minecraft.ai.brain.utils.Logger;
 import com.minecraft.ai.brain.service.ServiceManager;
@@ -185,6 +186,12 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
         this.getCommand("ai-voice").setExecutor(commandHandler);
         this.getCommand("ai-debug").setExecutor(commandHandler);
         this.getCommand("cloudtest").setExecutor(new CloudTestCommand());
+        
+        // Register STT test command
+        AudioCaptureService audioCaptureService = serviceManager.getService("audio_capture", AudioCaptureService.class);
+        if (audioCaptureService != null) {
+            this.getCommand("stttest").setExecutor(new STTTestCommand(this, audioCaptureService));
+        }
         
         // Register tab completers
         this.getCommand("ai").setTabCompleter(commandHandler);

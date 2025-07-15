@@ -38,6 +38,11 @@ commands:
     description: Test Google Cloud API connections
     usage: /cloudtest [auth|stt|tts|config|all]
     permission: minecraft.ai.debug
+  
+  stttest:
+    description: Test STT system with VAD
+    usage: /stttest [start|stop|status|stats|vad|help]
+    permission: minecraftai.stttest
 
 # Permissions
 permissions:
@@ -64,4 +69,8 @@ permissions:
   
   minecraft.ai.debug:
     description: Debug and diagnostic commands
+    default: op
+  
+  minecraftai.stttest:
+    description: Use STT test command
     default: op 

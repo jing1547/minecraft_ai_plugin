@@ -10,17 +10,21 @@ import java.util.Arrays;
 public class VoiceActivityDetector {
     
     // VAD 파라미터
-    private static final int FRAME_SIZE = 160; // 10ms at 16kHz
-    private static final double INITIAL_SPEECH_THRESHOLD = 0.3;
-    private static final double INITIAL_NOISE_THRESHOLD = 0.1;
-    private static final int SPEECH_HOLD_TIME = 30; // frames (300ms)
-    private static final int HANGOVER_TIME = 10; // frames (100ms)
-    private static final int ADAPTATION_FRAMES = 100; // 적응을 위한 프레임 수
+    private static final int FRAME_SIZE = 320; // 20ms at 16kHz (더 안정적인 분석을 위해 증가)
+    private static final double INITIAL_SPEECH_THRESHOLD = 0.02; // 더 민감하게 조정
+    private static final double INITIAL_NOISE_THRESHOLD = 0.005;
+    private static final int SPEECH_HOLD_TIME = 40; // frames (800ms - 말끔 시 여유 시간)
+    private static final int HANGOVER_TIME = 15; // frames (300ms)
+    private static final int ADAPTATION_FRAMES = 50; // 빠른 적응을 위해 감소
     
     // 스펙트럴 VAD 파라미터
-    private static final double SPECTRAL_FLATNESS_THRESHOLD = 0.5;
-    private static final double ZCR_THRESHOLD = 0.3;
+    private static final double SPECTRAL_FLATNESS_THRESHOLD = 0.7; // 음성은 보통 평탄도가 낮음
+    private static final double ZCR_THRESHOLD = 0.2; // 더 관대하게 조정
     private static final int SPECTRAL_BANDS = 8;
+    
+    // 새로운 파라미터들
+    private static final int MIN_SPEECH_FRAMES = 5; // 최소 음성 프레임 수 (100ms)
+    private static final double ENERGY_SMOOTHING_FACTOR = 0.7; // 에너지 평활화 계수
     
     // 적응형 임계값
     private double speechThreshold = INITIAL_SPEECH_THRESHOLD;
@@ -43,6 +47,11 @@ public class VoiceActivityDetector {
     private double backgroundNoiseLevel = 0.0;
     private double signalToNoiseRatio = 1.0;
     
+    // 에너지 평활화를 위한 변수
+    private double smoothedEnergy = 0.0;
+    private int consecutiveSpeechFrames = 0;
+    private int consecutiveSilenceFrames = 0;
+    
     /**
      * 오디오 프레임에서 음성 활동을 감지합니다.
      * @param audioFrame 오디오 프레임 데이터
@@ -60,20 +69,38 @@ public class VoiceActivityDetector {
         double zcr = calculateZeroCrossingRate(audioFrame);
         double spectralFlatness = calculateSpectralFlatness(audioFrame);
         
+        // 에너지 평활화 적용
+        smoothedEnergy = ENERGY_SMOOTHING_FACTOR * smoothedEnergy + 
+                        (1 - ENERGY_SMOOTHING_FACTOR) * energy;
+        
         // 특성 히스토리 업데이트
-        updateHistory(energy, zcr);
+        updateHistory(smoothedEnergy, zcr);
         
-        // 적응형 임계값 업데이트
-        updateAdaptiveThresholds();
+        // 적응형 임계값 업데이트 (프레임 수가 충분할 때만)
+        if (frameCount >= ADAPTATION_FRAMES / 2) {
+            updateAdaptiveThresholds();
+        }
         
-        // 다중 기준 VAD 결정
-        boolean energyVAD = energy > adaptiveEnergyThreshold;
+        // 다중 기준 VAD 결정 (평활화된 에너지 사용)
+        boolean energyVAD = smoothedEnergy > adaptiveEnergyThreshold;
         boolean spectralVAD = spectralFlatness < SPECTRAL_FLATNESS_THRESHOLD;
-        boolean zcrVAD = zcr > ZCR_THRESHOLD;
+        boolean zcrVAD = zcr > ZCR_THRESHOLD && zcr < 0.8; // 너무 높은 ZCR은 노이즈일 가능성
         
         // 가중치 기반 결합 결정
-        double vadScore = calculateVADScore(energyVAD, spectralVAD, zcrVAD, energy, zcr, spectralFlatness);
-        boolean currentDecision = vadScore > 0.5;
+        double vadScore = calculateVADScore(energyVAD, spectralVAD, zcrVAD, 
+                                          smoothedEnergy, zcr, spectralFlatness);
+        
+        // 연속 프레임 카운팅
+        if (vadScore > 0.5) {
+            consecutiveSpeechFrames++;
+            consecutiveSilenceFrames = 0;
+        } else {
+            consecutiveSilenceFrames++;
+            consecutiveSpeechFrames = 0;
+        }
+        
+        // 최소 연속 프레임 요구사항 적용
+        boolean currentDecision = consecutiveSpeechFrames >= MIN_SPEECH_FRAMES;
         
         // 시간적 평활화 적용
         return applyTemporalSmoothing(currentDecision);
@@ -234,24 +261,34 @@ public class VoiceActivityDetector {
      */
     private double calculateVADScore(boolean energyVAD, boolean spectralVAD, boolean zcrVAD,
                                    double energy, double zcr, double spectralFlatness) {
-        // 가중치 설정
-        double energyWeight = 0.5;
-        double spectralWeight = 0.3;
-        double zcrWeight = 0.2;
+        // 기본 가중치 설정
+        double energyWeight = 0.6;  // 에너지를 가장 중요하게
+        double spectralWeight = 0.25;
+        double zcrWeight = 0.15;
         
         // 신호 대 잡음비에 따른 가중치 조정
         if (signalToNoiseRatio < 2.0) {
             // 낮은 SNR에서는 에너지에 더 의존
-            energyWeight = 0.7;
-            spectralWeight = 0.2;
-            zcrWeight = 0.1;
+            energyWeight = 0.8;
+            spectralWeight = 0.15;
+            zcrWeight = 0.05;
+        } else if (signalToNoiseRatio > 5.0) {
+            // 높은 SNR에서는 다른 특성도 고려
+            energyWeight = 0.5;
+            spectralWeight = 0.3;
+            zcrWeight = 0.2;
         }
         
         double score = 0.0;
         
-        if (energyVAD) score += energyWeight;
-        if (spectralVAD) score += spectralWeight;
-        if (zcrVAD) score += zcrWeight;
+        // 부드러운 점수 계산 (boolean 대신 연속값 사용)
+        double energyScore = Math.min(1.0, energy / (adaptiveEnergyThreshold * 2));
+        double spectralScore = Math.max(0.0, 1.0 - spectralFlatness);
+        double zcrScore = Math.min(1.0, zcr / 0.5);
+        
+        score = energyScore * energyWeight + 
+                spectralScore * spectralWeight + 
+                zcrScore * zcrWeight;
         
         return score;
     }
@@ -308,6 +345,11 @@ public class VoiceActivityDetector {
         adaptiveEnergyThreshold = INITIAL_SPEECH_THRESHOLD;
         backgroundNoiseLevel = 0.0;
         signalToNoiseRatio = 1.0;
+        
+        // 새로운 변수들도 리셋
+        smoothedEnergy = 0.0;
+        consecutiveSpeechFrames = 0;
+        consecutiveSilenceFrames = 0;
     }
     
     /**
