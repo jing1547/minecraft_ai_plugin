@@ -3,6 +3,9 @@ package com.minecraft.ai.brain.service;
 import com.minecraft.ai.brain.utils.Logger;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.entity.Player;
+import com.google.cloud.texttospeech.v1.*;
+import com.google.protobuf.ByteString;
+import java.io.IOException;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,15 +33,20 @@ public class TextToSpeechService implements Service {
     // Advanced cache and rate limiting
     private TTSCacheManager cacheManager;
     private APIRateLimiter rateLimiter;
+    private TTSErrorHandler errorHandler;
+    private TTSQueueManager queueManager;
     
     // Audio player dependency
     private AudioPlayerService audioPlayerService;
     
+    // Google Cloud TTS client
+    private TextToSpeechClient ttsClient;
+    
     // Configuration cache
     private String defaultLanguageCode = "ko-KR";
     private String defaultVoiceName = "ko-KR-Neural2-C";
-    private String audioEncoding = "MP3";
-    private double sampleRateHertz = 22050.0;
+    private AudioEncoding audioEncoding = AudioEncoding.MP3;
+    private int sampleRateHertz = 24000; // 24kHz for better quality
     
     public TextToSpeechService(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -99,6 +107,17 @@ public class TextToSpeechService implements Service {
         if (rateLimiter != null) {
             metrics.put("rateLimitAllowed", rateLimiter.allowRequest());
             metrics.put("rateLimitWaitTime", rateLimiter.getTimeToNextAvailableSlot());
+        }
+        
+        // Error handler metrics
+        if (errorHandler != null) {
+            metrics.put("errorStats", errorHandler.getErrorStatistics());
+            metrics.put("serviceHealthy", errorHandler.isServiceHealthy());
+        }
+        
+        // Queue manager metrics
+        if (queueManager != null) {
+            metrics.put("queueStats", queueManager.getStatistics());
         }
         
         return metrics;
@@ -166,12 +185,14 @@ public class TextToSpeechService implements Service {
                 return;
             }
             
-            // Initialize Google Cloud TTS client (placeholder for now)
-            // TODO: Implement actual TTS client initialization
+            // Initialize Google Cloud TTS client
+            initializeTTSClient();
             
             // Initialize advanced caching and rate limiting
             cacheManager = new TTSCacheManager(this, 200, 3600000L); // 200 items, 1 hour expiry
             rateLimiter = APIRateLimiter.forGoogleCloudTTS(); // 600 requests per minute
+            errorHandler = new TTSErrorHandler();
+            queueManager = new TTSQueueManager(this, audioPlayerService);
             
             currentHealth = ServiceHealth.healthy("TTS service initialized successfully");
             logger.info(LOG_PREFIX + "TextToSpeech service initialized successfully");
@@ -198,8 +219,13 @@ public class TextToSpeechService implements Service {
             currentState = State.STARTING;
             logger.info(LOG_PREFIX + "Starting TextToSpeech service...");
             
-            // Test TTS connection (placeholder)
-            // TODO: Implement actual TTS connection test
+            // Test TTS connection
+            testTTSConnection();
+            
+            // Start queue manager
+            if (queueManager != null) {
+                queueManager.start();
+            }
             
             currentState = State.RUNNING;
             startTime = System.currentTimeMillis();
@@ -224,9 +250,20 @@ public class TextToSpeechService implements Service {
             currentState = State.STOPPING;
             logger.info(LOG_PREFIX + "Stopping TextToSpeech service...");
             
+            // Stop queue manager
+            if (queueManager != null) {
+                queueManager.stop();
+            }
+            
             // Cleanup resources
             if (cacheManager != null) {
                 cacheManager.clearCache();
+            }
+            
+            // Close TTS client
+            if (ttsClient != null) {
+                ttsClient.close();
+                ttsClient = null;
             }
             
             currentState = State.STOPPED;
@@ -238,6 +275,51 @@ public class TextToSpeechService implements Service {
             currentHealth = ServiceHealth.unhealthy("Stop failed: " + e.getMessage());
             throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.STARTUP_FAILED, 
                 "Failed to stop TextToSpeech service", e);
+        }
+    }
+    
+    /**
+     * Initialize Google Cloud TTS client
+     */
+    private void initializeTTSClient() throws IOException {
+        try {
+            // Set credentials from config
+            String credentialsPath = TTSConfig.getCredentialsPath();
+            if (credentialsPath != null && !credentialsPath.isEmpty()) {
+                System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
+            }
+            
+            // Create TTS client
+            ttsClient = TextToSpeechClient.create();
+            logger.info(LOG_PREFIX + "Google Cloud TTS client initialized successfully");
+            
+        } catch (IOException e) {
+            logger.severe(LOG_PREFIX + "Failed to initialize TTS client: " + e.getMessage());
+            throw e;
+        }
+    }
+    
+    /**
+     * Test TTS connection by listing available voices
+     */
+    private void testTTSConnection() throws ServiceException {
+        try {
+            // List available voices for the default language
+            ListVoicesRequest request = ListVoicesRequest.newBuilder()
+                .setLanguageCode(defaultLanguageCode)
+                .build();
+                
+            ListVoicesResponse response = ttsClient.listVoices(request);
+            
+            logger.info(LOG_PREFIX + "TTS connection test successful. Available voices for " + defaultLanguageCode + ":");
+            for (Voice voice : response.getVoicesList()) {
+                logger.info(LOG_PREFIX + "  - " + voice.getName() + " (" + voice.getSsmlGender() + ")");
+            }
+            
+        } catch (Exception e) {
+            logger.severe(LOG_PREFIX + "TTS connection test failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.HEALTH_CHECK_FAILED,
+                "Failed to connect to Google Cloud TTS", e);
         }
     }
     
@@ -314,28 +396,75 @@ public class TextToSpeechService implements Service {
             long waitTime = rateLimiter.getTimeToNextAvailableSlot();
             logger.warning(LOG_PREFIX + "Rate limit exceeded. Next slot available in " + waitTime + "ms");
             
-            // For now, throw exception - in production might want to queue or wait
             throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.HEALTH_CHECK_FAILED,
                 "Rate limit exceeded. Try again in " + waitTime + "ms");
         }
         
-        // TODO: Implement actual Google Cloud TTS synthesis
-        // For now, return placeholder data
-        logger.info(LOG_PREFIX + "Synthesizing speech directly with " + 
+        if (ttsClient == null) {
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "TTS client not initialized");
+        }
+        
+        // 에러 핸들러를 통한 재시도 로직
+        if (errorHandler != null) {
+            byte[] result = errorHandler.executeWithRetry(() -> {
+                return performSynthesis(text, emotion);
+            }, text);
+            
+            if (result != null) {
+                return result;
+            } else {
+                // 모든 재시도 실패 - 폴백 처리
+                TTSErrorHandler.ErrorType lastError = errorHandler.classifyError(
+                    new Exception("All retry attempts failed"));
+                String fallbackMsg = errorHandler.getFallbackMessage(text, lastError);
+                throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                    fallbackMsg);
+            }
+        } else {
+            // 에러 핸들러가 없으면 직접 실행
+            return performSynthesis(text, emotion);
+        }
+    }
+    
+    /**
+     * 실제 음성 합성 수행
+     */
+    private byte[] performSynthesis(String text, String emotion) throws Exception {
+        logger.info(LOG_PREFIX + "Synthesizing speech with " + 
                    (emotion != null ? emotion : "default") + " emotion: " + 
                    text.substring(0, Math.min(50, text.length())) + 
                    (text.length() > 50 ? "..." : ""));
         
-        // Simulate API call delay
-        try {
-            Thread.sleep(100); // Simulate network delay
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        // Build the voice request
+        VoiceSelectionParams voice = VoiceSelectionParams.newBuilder()
+            .setLanguageCode(defaultLanguageCode)
+            .setName(getEmotionVoice(emotion))
+            .setSsmlGender(SsmlVoiceGender.NEUTRAL)
+            .build();
         
-        // Placeholder: return empty byte array
-        logger.info(LOG_PREFIX + "Speech synthesis completed (placeholder), audio size: 0 bytes");
-        return new byte[0];
+        // Select the type of audio file
+        AudioConfig audioConfig = AudioConfig.newBuilder()
+            .setAudioEncoding(audioEncoding)
+            .setSampleRateHertz(sampleRateHertz)
+            .setPitch(getEmotionPitch(emotion))
+            .setSpeakingRate(getEmotionRate(emotion))
+            .build();
+        
+        // Build the synthesis input
+        SynthesisInput input = SynthesisInput.newBuilder()
+            .setText(text)
+            .build();
+        
+        // Perform the text-to-speech request
+        SynthesizeSpeechResponse response = ttsClient.synthesizeSpeech(input, voice, audioConfig);
+        
+        // Get the audio contents from the response
+        ByteString audioContents = response.getAudioContent();
+        byte[] audioData = audioContents.toByteArray();
+        
+        logger.info(LOG_PREFIX + "Speech synthesis completed, audio size: " + audioData.length + " bytes");
+        return audioData;
     }
     
     /**
@@ -383,20 +512,48 @@ public class TextToSpeechService implements Service {
                 "Rate limit exceeded for SSML. Try again in " + waitTime + "ms");
         }
         
-        // TODO: Implement actual Google Cloud TTS synthesis with SSML
-        logger.info(LOG_PREFIX + "Synthesizing SSML speech directly with " + 
-                   (emotion != null ? emotion : "default") + " emotion");
-        
-        // Simulate API call delay
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (ttsClient == null) {
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "TTS client not initialized");
         }
         
-        // Placeholder: return empty byte array
-        logger.info(LOG_PREFIX + "SSML speech synthesis completed (placeholder), audio size: 0 bytes");
-        return new byte[0];
+        try {
+            logger.info(LOG_PREFIX + "Synthesizing SSML speech with " + 
+                       (emotion != null ? emotion : "default") + " emotion");
+            
+            // Build the voice request
+            VoiceSelectionParams voice = VoiceSelectionParams.newBuilder()
+                .setLanguageCode(defaultLanguageCode)
+                .setName(getEmotionVoice(emotion))
+                .setSsmlGender(SsmlVoiceGender.NEUTRAL)
+                .build();
+            
+            // Select the type of audio file
+            AudioConfig audioConfig = AudioConfig.newBuilder()
+                .setAudioEncoding(audioEncoding)
+                .setSampleRateHertz(sampleRateHertz)
+                .build();
+            
+            // Build the synthesis input with SSML
+            SynthesisInput input = SynthesisInput.newBuilder()
+                .setSsml(ssmlText)
+                .build();
+            
+            // Perform the text-to-speech request
+            SynthesizeSpeechResponse response = ttsClient.synthesizeSpeech(input, voice, audioConfig);
+            
+            // Get the audio contents from the response
+            ByteString audioContents = response.getAudioContent();
+            byte[] audioData = audioContents.toByteArray();
+            
+            logger.info(LOG_PREFIX + "SSML speech synthesis completed, audio size: " + audioData.length + " bytes");
+            return audioData;
+            
+        } catch (Exception e) {
+            logger.severe(LOG_PREFIX + "SSML speech synthesis failed: " + e.getMessage());
+            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                "Failed to synthesize SSML speech: " + e.getMessage(), e);
+        }
     }
     
     /**
@@ -586,20 +743,8 @@ public class TextToSpeechService implements Service {
                 "Rate limit exceeded for advanced Korean. Try again in " + waitTime + "ms");
         }
         
-        // TODO: Implement actual Google Cloud TTS synthesis with advanced Korean SSML
-        logger.info(LOG_PREFIX + "Synthesizing advanced Korean speech directly with " + 
-                   (emotion != null ? emotion : "default") + " emotion and intonation patterns");
-        
-        // Simulate API call delay
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        
-        // Placeholder: return empty byte array
-        logger.info(LOG_PREFIX + "Advanced Korean speech synthesis completed (placeholder), audio size: 0 bytes");
-        return new byte[0];
+        // Use SSML synthesis method for advanced Korean
+        return synthesizeSSMLDirectly(ssmlText, emotion);
     }
     
     /**
@@ -680,6 +825,13 @@ public class TextToSpeechService implements Service {
      * Synthesize speech with emotion and play it to a player at a specific location
      */
     public void synthesizeAndPlay(String text, String emotion, Player player, AudioPlayerService.Position position) throws ServiceException {
+        synthesizeAndPlay(text, emotion, player, position, 5); // 기본 우선순위 5
+    }
+    
+    /**
+     * Synthesize speech with emotion and priority, and play it to a player at a specific location
+     */
+    public void synthesizeAndPlay(String text, String emotion, Player player, AudioPlayerService.Position position, int priority) throws ServiceException {
         if (currentState != State.RUNNING) {
             throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
                 "TextToSpeech service is not running");
@@ -690,19 +842,30 @@ public class TextToSpeechService implements Service {
                 "AudioPlayerService not available");
         }
         
-        try {
-            // Generate audio data
-            byte[] audioData = synthesizeSpeech(text, emotion);
-            
-            // Queue for spatial playback
-            audioPlayerService.queueAudio(audioData, position, player.getUniqueId());
-            
-            logger.debug(LOG_PREFIX + "Queued audio for playback: " + text.substring(0, Math.min(50, text.length())));
-            
-        } catch (Exception e) {
-            currentHealth = ServiceHealth.degraded("Synthesis and play failed: " + e.getMessage());
-            throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
-                "Failed to synthesize and play speech: " + e.getMessage(), e);
+        if (queueManager != null) {
+            // 큐 매니저를 통해 처리
+            queueManager.queueRequest(player.getUniqueId(), text, emotion, position, priority)
+                .thenAccept(success -> {
+                    if (success) {
+                        logger.debug(LOG_PREFIX + "TTS request queued successfully: " + 
+                                   text.substring(0, Math.min(50, text.length())));
+                    } else {
+                        logger.warning(LOG_PREFIX + "TTS request failed: " + 
+                                     text.substring(0, Math.min(50, text.length())));
+                    }
+                });
+        } else {
+            // 큐 매니저가 없으면 직접 처리 (이전 방식)
+            try {
+                byte[] audioData = synthesizeSpeech(text, emotion);
+                audioPlayerService.queueAudio(audioData, position, player.getUniqueId());
+                logger.debug(LOG_PREFIX + "Queued audio for playback: " + 
+                           text.substring(0, Math.min(50, text.length())));
+            } catch (Exception e) {
+                currentHealth = ServiceHealth.degraded("Synthesis and play failed: " + e.getMessage());
+                throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                    "Failed to synthesize and play speech: " + e.getMessage(), e);
+            }
         }
     }
 } 

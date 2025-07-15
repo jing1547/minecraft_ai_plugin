@@ -9,6 +9,7 @@ import com.minecraft.ai.brain.handlers.PlayerEventHandler;
 import com.minecraft.ai.brain.handlers.CommandHandler;
 import com.minecraft.ai.brain.commands.CloudTestCommand;
 import com.minecraft.ai.brain.commands.STTTestCommand;
+import com.minecraft.ai.brain.commands.TTSTestCommand;
 import com.minecraft.ai.brain.utils.ConfigManager;
 import com.minecraft.ai.brain.utils.Logger;
 import com.minecraft.ai.brain.service.ServiceManager;
@@ -191,6 +192,13 @@ public class MinecraftAIBrainPlugin extends JavaPlugin {
         AudioCaptureService audioCaptureService = serviceManager.getService("audio_capture", AudioCaptureService.class);
         if (audioCaptureService != null) {
             this.getCommand("stttest").setExecutor(new STTTestCommand(this, audioCaptureService));
+        }
+        
+        // Register TTS test command
+        TextToSpeechService ttsService = serviceManager.getService("text-to-speech", TextToSpeechService.class);
+        AudioPlayerService audioPlayerService = serviceManager.getService("audio_player", AudioPlayerService.class);
+        if (ttsService != null && audioPlayerService != null) {
+            this.getCommand("ttstest").setExecutor(new TTSTestCommand(this, ttsService, audioPlayerService));
         }
         
         // Register tab completers

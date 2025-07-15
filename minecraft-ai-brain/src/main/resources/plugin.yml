@@ -43,6 +43,11 @@ commands:
     description: Test STT system with VAD
     usage: /stttest [start|stop|status|stats|vad|help]
     permission: minecraftai.stttest
+  
+  ttstest:
+    description: Test TTS system
+    usage: /ttstest [simple|emotion|ssml|korean|custom|status|cache|help]
+    permission: minecraftai.ttstest
 
 # Permissions
 permissions:
@@ -73,4 +78,8 @@ permissions:
   
   minecraftai.stttest:
     description: Use STT test command
+    default: op
+  
+  minecraftai.ttstest:
+    description: Use TTS test command
     default: op 
