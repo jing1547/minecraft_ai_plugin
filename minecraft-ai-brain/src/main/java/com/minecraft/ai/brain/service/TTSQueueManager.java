@@ -252,15 +252,19 @@ public class TTSQueueManager {
      */
     private void processRequest(TTSRequest request) {
         try {
-            logger.info(String.format("Processing TTS request: id=%s, player=%s",
-                request.getRequestId(), request.getPlayerId()));
+            logger.info(String.format("Processing TTS request: id=%s, player=%s, text=%s",
+                request.getRequestId(), request.getPlayerId(), 
+                request.getText().substring(0, Math.min(50, request.getText().length()))));
             
             // TTS 합성
             byte[] audioData = ttsService.synthesizeSpeech(request.getText(), request.getEmotion());
             
             if (audioData != null && audioData.length > 0) {
+                logger.info(String.format("TTS synthesis successful: %d bytes of audio data", audioData.length));
+                
                 // 오디오 재생 큐에 추가
                 audioPlayerService.queueAudio(audioData, request.getPosition(), request.getPlayerId());
+                logger.info("Audio queued for playback at position: " + request.getPosition());
                 
                 processedRequests.incrementAndGet();
                 request.getFuture().complete(true);

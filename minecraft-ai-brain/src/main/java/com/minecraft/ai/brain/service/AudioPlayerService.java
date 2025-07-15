@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
+import com.minecraft.ai.brain.MinecraftAIBrainPlugin;
 
 /**
  * AudioPlayerService handles audio playback with spatial positioning in the game environment.
@@ -411,14 +412,38 @@ public class AudioPlayerService implements Service {
      * Play audio with spatial positioning
      */
     private void playSpatialAudio(SoundEventWrapper sound, SpatialAudioParams spatialParams, AudioEntry entry) {
-        // In a real implementation, this would use Minecraft's sound system:
-        // world.playSound(null, position.x, position.y, position.z, soundEvent, SoundCategory, volume, pitch);
+        // Get the plugin instance
+        org.bukkit.plugin.java.JavaPlugin plugin = MinecraftAIBrainPlugin.getInstance();
+        if (plugin == null) {
+            logger.warning("[AudioPlayerService] Plugin instance is null, cannot play audio");
+            return;
+        }
         
-        logger.info("[AudioPlayerService] Playing spatial audio - " +
-                         "Volume: " + spatialParams.getVolume() + 
-                         ", Pitch: " + spatialParams.getPitch() + 
-                         ", Pan: " + spatialParams.getPan() +
-                         ", Position: " + spatialParams.getPosition());
+        // Play the audio data as a custom sound
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+            try {
+                Position pos = entry.getPosition();
+                org.bukkit.Location location = new org.bukkit.Location(
+                    org.bukkit.Bukkit.getWorlds().get(0), // Default world
+                    pos.getX(), pos.getY(), pos.getZ()
+                );
+                
+                // Play a notification sound for now (until we implement custom audio)
+                location.getWorld().playSound(location, 
+                    org.bukkit.Sound.BLOCK_NOTE_BLOCK_BELL,
+                    (float) spatialParams.getVolume(), 
+                    (float) spatialParams.getPitch()
+                );
+                
+                logger.info("[AudioPlayerService] Played notification sound at " + location);
+                
+                // TODO: Implement actual audio playback using resource packs or packets
+                // For now, just play a placeholder sound
+                
+            } catch (Exception e) {
+                logger.severe("[AudioPlayerService] Error playing sound: " + e.getMessage());
+            }
+        });
     }
     
     /**
