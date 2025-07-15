@@ -10,9 +10,10 @@ You need a Google Cloud service account JSON file with Text-to-Speech and Speech
    - The file should be named: `minecraftsever-463307-4aca77796027.json`
    - This is configured in `src/main/resources/config.yml`
 
-2. **Place the credentials file in the plugin directory**
-   - Copy your Google Cloud JSON credentials file to the Minecraft server's plugin directory
-   - The file path should be relative to where the Minecraft server runs
+2. **Place the credentials file in one of these locations**
+   - Option 1: In the server's root directory (where you run the server from)
+   - Option 2: In the plugin's data folder: `plugins/MinecraftAIBrain/`
+   - Option 3: In the plugins folder where the JAR file is located: `plugins/`
 
 3. **Verify the file path**
    - The config.yml expects the file at: `minecraftsever-463307-4aca77796027.json`

@@ -312,8 +312,9 @@ public class TextToSpeechService implements Service {
             // Set credentials from config
             String credentialsPath = TTSConfig.getCredentialsPath();
             if (credentialsPath != null && !credentialsPath.isEmpty()) {
-                // Check if credentials file exists
+                // TTSConfig.getCredentialsPath() now returns absolute path for relative paths
                 java.io.File credFile = new java.io.File(credentialsPath);
+                
                 if (!credFile.exists()) {
                     logger.severe(LOG_PREFIX + "Credentials file not found: " + credentialsPath);
                     throw new IOException("Google Cloud credentials file not found: " + credentialsPath);
@@ -322,6 +323,7 @@ public class TextToSpeechService implements Service {
                     logger.severe(LOG_PREFIX + "Cannot read credentials file: " + credentialsPath);
                     throw new IOException("Cannot read Google Cloud credentials file: " + credentialsPath);
                 }
+                
                 System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", credentialsPath);
                 logger.info(LOG_PREFIX + "Using credentials file: " + credentialsPath);
             } else {

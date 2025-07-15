@@ -94,6 +94,12 @@ public class TTSConfig {
      * Get credentials file path
      */
     public static String getCredentialsPath() {
+        // If path is relative, make it relative to plugin data folder
+        if (credentialsPath != null && !credentialsPath.trim().isEmpty() && !java.nio.file.Paths.get(credentialsPath).isAbsolute()) {
+            if (pluginInstance != null) {
+                return pluginInstance.getDataFolder().getAbsolutePath() + "/" + credentialsPath;
+            }
+        }
         return credentialsPath;
     }
     
