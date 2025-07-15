@@ -143,7 +143,8 @@ public class TextToSpeechService implements Service {
     
     @Override
     public boolean isEnabled() {
-        return currentState == State.RUNNING;
+        // Check if TTS is enabled in configuration, not the current running state
+        return TTSConfig.isEnabled();
     }
     
     @Override
@@ -806,6 +807,13 @@ public class TextToSpeechService implements Service {
         
         // Use SSML synthesis method for advanced Korean
         return synthesizeSSMLDirectly(ssmlText, emotion);
+    }
+    
+    /**
+     * Check if the service is currently running
+     */
+    public boolean isRunning() {
+        return currentState == State.RUNNING;
     }
     
     /**

@@ -117,6 +117,17 @@ public class TTSTestCommand implements CommandExecutor {
     private void testSimpleTTS(Player player, String[] args) {
         player.sendMessage(ChatColor.AQUA + "========== 간단한 TTS 테스트 ==========");
         
+        // 서비스 상태 확인
+        if (ttsService == null || !ttsService.isRunning()) {
+            player.sendMessage(ChatColor.RED + "✗ TTS 서비스가 실행되지 않고 있습니다.");
+            player.sendMessage(ChatColor.YELLOW + "서비스 상태: " + (ttsService != null ? ttsService.getState() : "null"));
+            if (ttsService != null) {
+                player.sendMessage(ChatColor.YELLOW + "건강 상태: " + ttsService.getHealth().getMessage());
+            }
+            player.sendMessage(ChatColor.GRAY + "/ttstest status 명령어로 자세한 상태를 확인하세요.");
+            return;
+        }
+        
         String text;
         if (args.length > 1) {
             // 사용자 지정 텍스트
@@ -145,6 +156,7 @@ public class TTSTestCommand implements CommandExecutor {
             
         } catch (ServiceException e) {
             player.sendMessage(ChatColor.RED + "✗ TTS 오류: " + e.getMessage());
+            player.sendMessage(ChatColor.GRAY + "에러 코드: " + e.getErrorCode());
         }
     }
     
@@ -303,9 +315,28 @@ public class TTSTestCommand implements CommandExecutor {
     private void showTTSStatus(Player player) {
         player.sendMessage(ChatColor.AQUA + "========== TTS 시스템 상태 ==========");
         
+        // 서비스 존재 여부
+        if (ttsService == null) {
+            player.sendMessage(ChatColor.RED + "✗ TTS 서비스가 null입니다!");
+            return;
+        }
+        
         // 서비스 상태
-        player.sendMessage(ChatColor.YELLOW + "서비스 상태: " + 
+        player.sendMessage(ChatColor.YELLOW + "서비스 State: " + ChatColor.WHITE + ttsService.getState());
+        player.sendMessage(ChatColor.YELLOW + "서비스 설정 활성화: " + 
             (ttsService.isEnabled() ? ChatColor.GREEN + "활성" : ChatColor.RED + "비활성"));
+        player.sendMessage(ChatColor.YELLOW + "서비스 실행 중: " + 
+            (ttsService.isRunning() ? ChatColor.GREEN + "예" : ChatColor.RED + "아니오"));
+        
+        // 서비스 건강 상태
+        player.sendMessage(ChatColor.YELLOW + "서비스 건강 상태: " + ChatColor.WHITE + 
+            ttsService.getHealth().getStatus() + " - " + ttsService.getHealth().getMessage());
+        
+        // TTSConfig 정보
+        player.sendMessage(ChatColor.YELLOW + "TTSConfig 초기화: " + ChatColor.WHITE + 
+            com.minecraft.ai.brain.service.TTSConfig.isInitialized());
+        player.sendMessage(ChatColor.YELLOW + "TTSConfig 활성화: " + ChatColor.WHITE + 
+            com.minecraft.ai.brain.service.TTSConfig.isEnabled());
         
         // 서비스 통계
         String stats = ttsService.getServiceStats();
