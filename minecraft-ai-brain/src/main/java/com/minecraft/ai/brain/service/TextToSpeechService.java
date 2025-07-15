@@ -423,7 +423,12 @@ public class TextToSpeechService implements Service {
             }
         } else {
             // 에러 핸들러가 없으면 직접 실행
-            return performSynthesis(text, emotion);
+            try {
+                return performSynthesis(text, emotion);
+            } catch (Exception e) {
+                throw new ServiceException(SERVICE_ID, ServiceException.ErrorCode.SERVICE_NOT_FOUND,
+                    "Failed to synthesize speech: " + e.getMessage(), e);
+            }
         }
     }
     
